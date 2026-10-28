@@ -47,6 +47,9 @@
             <div><label for="name">Gift name</label><input type="text" id="name" required maxlength="80" placeholder="e.g. Birthday Surprise Box"></div>
             <div><label for="price">Price (₹)</label><input type="number" id="price" required min="0" step="1" placeholder="e.g. 999"></div>
           </div>
+          <label for="stockIn">Stock (how many in hand)</label>
+          <input type="number" id="stockIn" required min="0" step="1" value="1" placeholder="e.g. 10">
+          <div class="hint">When this reaches 0 the shop shows “Sold out” on the photo automatically.</div>
           <label for="category">Category</label>
           <input type="text" id="category" list="catlist" required maxlength="40" placeholder="Pick one or type a new category">
           <datalist id="catlist"></datalist>
@@ -56,7 +59,6 @@
           <input type="file" id="file" accept="image/*">
           <div class="hint">Take a clear photo with good light. Large photos are shrunk automatically.</div>
           <img class="preview" id="preview" alt="" style="display:none">
-          <label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" id="stock" checked> Available (untick to show “Sold out”)</label>
           <div style="display:flex;gap:10px;margin-top:18px">
             <button class="btn btn-p" id="saveBtn" style="padding:12px 22px">Save gift</button>
             <button type="button" class="btn btn-s" id="cancel" style="display:none">Cancel edit</button>
@@ -128,13 +130,18 @@ async function loadGifts() {
   const cats = [...new Set([...DEFAULT_CATS, ...products.map(p => p.category).filter(Boolean)])];
   $('#catlist').innerHTML = cats.map(c => '<option value="' + esc(c) + '">').join('');
   $('#num').textContent = products.length;
-  $('#list').innerHTML = products.length ? products.map(p =>
-    '<div class="item"><img src="' + esc(p.image_url || '') + '" alt="">' +
-    '<div><div class="t">' + esc(p.name) + '<span class="pill ' + (p.in_stock === false ? 'off' : '') + '">' + (p.in_stock === false ? 'Sold out' : 'Available') + '</span></div>' +
+  $('#list').innerHTML = products.length ? products.map(p => {
+    const n = MU.stockOf(p), id = esc(p.id);
+    const pill = n === 0 ? '<span class="pill off">Sold out</span>' : n <= 3 ? '<span class="pill low">Low stock</span>' : '<span class="pill">In stock</span>';
+    return '<div class="item"><img src="' + esc(p.image_url || '') + '" alt="">' +
+    '<div><div class="t">' + esc(p.name) + pill + '</div>' +
     '<div class="s">' + esc(p.category) + ' · ' + money(p.price) + '</div></div>' +
-    '<div class="b"><button class="btn btn-s" data-edit="' + esc(p.id) + '">Edit</button>' +
-    '<button class="btn btn-s" data-stock="' + esc(p.id) + '">' + (p.in_stock === false ? 'Mark available' : 'Mark sold out') + '</button>' +
-    '<button class="btn btn-d" data-del="' + esc(p.id) + '">Delete</button></div></div>').join('')
+    '<div class="b"><div class="stepper"><button class="btn btn-s" data-adj="-1" data-id="' + id + '" aria-label="Reduce stock by 1"' + (n === 0 ? ' disabled' : '') + '>−</button>' +
+    '<span class="stk" title="Stock">' + n + '</span>' +
+    '<button class="btn btn-s" data-adj="1" data-id="' + id + '" aria-label="Increase stock by 1">+</button></div>' +
+    '<button class="btn btn-s" data-edit="' + id + '">Edit</button>' +
+    '<button class="btn btn-d" data-del="' + id + '">Delete</button></div></div>';
+  }).join('')
     : '<div class="note">No gifts yet. Add your first one above.</div>';
 }
 async function loadSettings() {
@@ -145,7 +152,7 @@ async function loadSettings() {
 function resetForm() {
   $('#form').reset(); $('#pid').value = ''; editImg = '';
   $('#preview').style.display = 'none'; $('#formTitle').textContent = 'Add a gift';
-  $('#cancel').style.display = 'none'; $('#stock').checked = true;
+  $('#cancel').style.display = 'none'; $('#stockIn').value = 1;
 }
 $('#cancel').onclick = resetForm;
 
@@ -166,7 +173,7 @@ $('#form').onsubmit = e => {
         id: $('#pid').value || undefined,
         name: $('#name').value.trim(), category: $('#category').value.trim(),
         price: Number($('#price').value), description: $('#desc').value.trim(),
-        image_url: url || null, in_stock: $('#stock').checked
+        image_url: url || null, stock: Math.max(0, Math.floor(Number($('#stockIn').value) || 0))
       });
       toast($('#pid').value ? 'Gift updated' : 'Gift added');
       resetForm(); await loadGifts();
@@ -181,13 +188,17 @@ $('#list').onclick = e => {
     const p = find(b.dataset.edit); if (!p) return;
     $('#pid').value = p.id; $('#name').value = p.name; $('#price').value = p.price;
     $('#category').value = p.category; $('#desc').value = p.description || '';
-    $('#stock').checked = p.in_stock !== false; editImg = p.image_url || '';
+    $('#stockIn').value = MU.stockOf(p); editImg = p.image_url || '';
     $('#file').value = ''; $('#preview').src = editImg; $('#preview').style.display = editImg ? '' : 'none';
     $('#formTitle').textContent = 'Edit gift'; $('#cancel').style.display = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  } else if (b.dataset.stock) {
-    const p = find(b.dataset.stock); if (!p) return;
-    guard(async () => { await MU.saveProduct({ id: p.id, name: p.name, category: p.category, price: p.price, description: p.description, image_url: p.image_url, in_stock: p.in_stock === false }); await loadGifts(); toast('Updated'); });
+  } else if (b.dataset.adj) {
+    const p = find(b.dataset.id); if (!p) return;
+    const n = Math.max(0, MU.stockOf(p) + Number(b.dataset.adj));
+    guard(async () => {
+      await MU.saveProduct({ id: p.id, name: p.name, category: p.category, price: p.price, description: p.description, image_url: p.image_url, stock: n });
+      await loadGifts(); toast(n === 0 ? p.name + ' is now sold out' : 'Stock updated: ' + n);
+    });
   } else if (b.dataset.del) {
     const p = find(b.dataset.del); if (!p) return;
     if (!confirm('Delete "' + p.name + '"? This cannot be undone.')) return;

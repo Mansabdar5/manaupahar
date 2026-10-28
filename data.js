@@ -17,12 +17,12 @@
     '<rect width="400" height="400" fill="url(#g)"/><text x="200" y="245" font-size="150" text-anchor="middle">' + emoji + '</text></svg>');
 
   const sample = [
-    { id: 's1', name: 'Personalised Photo Frame', category: 'Personalised', price: 599, description: 'Wooden frame with your favourite memory printed and engraved with a short message.', image_url: ph('🖼️', '#FFE7CC', '#FDBA74'), in_stock: true },
-    { id: 's2', name: 'Birthday Surprise Box', category: 'Birthday', price: 1299, description: 'Chocolates, a handwritten card, balloons and a small plush toy in a gift box.', image_url: ph('🎂', '#FFE4E6', '#FDA4AF'), in_stock: true },
-    { id: 's3', name: 'Anniversary Rose Hamper', category: 'Anniversary', price: 1799, description: 'Fresh roses with chocolates and a scented candle, wrapped with a green ribbon.', image_url: ph('🌹', '#FEE2E2', '#FCA5A5'), in_stock: true },
-    { id: 's4', name: 'Festive Dry Fruit Hamper', category: 'Festival', price: 999, description: 'Premium almonds, cashews and raisins in a reusable decorative box.', image_url: ph('🎁', '#DCFCE7', '#86EFAC'), in_stock: true },
-    { id: 's5', name: 'Baby Welcome Set', category: 'Baby & Kids', price: 1499, description: 'Soft blanket, rattle and a keepsake for the newest family member.', image_url: ph('🧸', '#E0F2FE', '#7DD3FC'), in_stock: false },
-    { id: 's6', name: 'Handcrafted Table Lamp', category: 'Home Décor', price: 849, description: 'Warm ambient lamp that makes a lovely housewarming present.', image_url: ph('🪔', '#FEF9C3', '#FDE047'), in_stock: true }
+    { id: 's1', name: 'Personalised Photo Frame', category: 'Personalised', price: 599, description: 'Wooden frame with your favourite memory printed and engraved with a short message.', image_url: ph('🖼️', '#FFE7CC', '#FDBA74'), stock: 12 },
+    { id: 's2', name: 'Birthday Surprise Box', category: 'Birthday', price: 1299, description: 'Chocolates, a handwritten card, balloons and a small plush toy in a gift box.', image_url: ph('🎂', '#FFE4E6', '#FDA4AF'), stock: 5 },
+    { id: 's3', name: 'Anniversary Rose Hamper', category: 'Anniversary', price: 1799, description: 'Fresh roses with chocolates and a scented candle, wrapped with a green ribbon.', image_url: ph('🌹', '#FEE2E2', '#FCA5A5'), stock: 2 },
+    { id: 's4', name: 'Festive Dry Fruit Hamper', category: 'Festival', price: 999, description: 'Premium almonds, cashews and raisins in a reusable decorative box.', image_url: ph('🎁', '#DCFCE7', '#86EFAC'), stock: 8 },
+    { id: 's5', name: 'Baby Welcome Set', category: 'Baby & Kids', price: 1499, description: 'Soft blanket, rattle and a keepsake for the newest family member.', image_url: ph('🧸', '#E0F2FE', '#7DD3FC'), stock: 0 },
+    { id: 's6', name: 'Handcrafted Table Lamp', category: 'Home Décor', price: 849, description: 'Warm ambient lamp that makes a lovely housewarming present.', image_url: ph('🪔', '#FEF9C3', '#FDE047'), stock: 6 }
   ];
 
   const defaults = { whatsapp: C.DEFAULT_WHATSAPP || '919999999999', note: 'Delivery and payment details will be confirmed with you on WhatsApp.' };
@@ -49,6 +49,7 @@
   const MU = {
     live,
     esc: s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])),
+    stockOf: p => Math.max(0, Number(p && p.stock != null ? p.stock : (p && p.in_stock === false ? 0 : 1)) || 0),
     money: n => '₹' + Number(n || 0).toLocaleString('en-IN'),
 
     // Shows logo.png if you add it to the folder; otherwise a text logo in the brand colours.
@@ -89,7 +90,7 @@
         else list.unshift(Object.assign({ id: 'd' + Date.now() }, p));
         wr(K.p, list); return;
       }
-      const row = { name: p.name, category: p.category, price: p.price, description: p.description, image_url: p.image_url, in_stock: p.in_stock };
+      const row = { name: p.name, category: p.category, price: p.price, description: p.description, image_url: p.image_url, stock: p.stock };
       const q = p.id ? sb.from('products').update(row).eq('id', p.id) : sb.from('products').insert(row);
       const { error } = await q;
       if (error) throw error;

@@ -33,11 +33,16 @@ Double-click `index.html`. It opens in **demo mode** with sample gifts. Open `ad
 ## Your logo
 Your logo is already included (`logo-header.png` appears in the page header, `favicon.png` is the browser tab icon). To change it later, replace those files and keep the same names. File names are case-sensitive on Vercel, so keep them lowercase.
 
+## Upgrading an existing site to the stock feature
+Already set up before this update? Run `upgrade-stock.sql` once: Supabase → **SQL Editor** → **New query** → paste → **Run**. Then upload the changed files to GitHub. New installs do not need it, because `setup.sql` already includes stock.
+
 ## Daily use
 1. Open `yoursite.vercel.app/admin` and log in.
 2. **Gifts → Add a gift:** name, price, category, photo, Save. It appears on the shop immediately.
-3. **Mark sold out / Edit / Delete** from the list below.
-4. **Settings:** change the WhatsApp number that receives orders.
+3. **Stock:** every gift has a stock number. Use **−** when you sell one and **+** when you restock, or type the exact number under **Edit**. At **0** the shop shows **SOLD OUT** on the photo and the order buttons are disabled. With 3 or fewer left, customers see "Only N left", and they cannot add more to the cart than you have.
+   Orders arrive on WhatsApp, so the website does not reduce stock by itself. Press **−** once you confirm an order.
+4. **Edit / Delete** gifts from the list below.
+5. **Settings:** change the WhatsApp number that receives orders.
 
 ## How customers order
 Customers browse by category, tap **Order now** (one gift) or **Add to cart** for several, then **Send order on WhatsApp**. WhatsApp opens with the gift list and total already typed; they add name, address and delivery date and send. You confirm payment and delivery in the chat.

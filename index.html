@@ -89,26 +89,26 @@ function renderGrid() {
     (!t || (p.name + ' ' + (p.description || '') + ' ' + p.category).toLowerCase().includes(t)));
   if (!list.length) { $('#grid').innerHTML = '<div class="empty">No gifts found here yet. Try another category.</div>'; return; }
   $('#grid').innerHTML = list.map(p => {
-    const out = p.in_stock === false;
+    const left = MU.stockOf(p), out = left === 0;
     return '<article class="card"><div class="img" data-view="' + esc(p.id) + '">' +
       '<img loading="lazy" src="' + esc(p.image_url || '') + '" alt="' + esc(p.name) + '">' +
-      '<span class="tag">' + esc(p.category) + '</span>' + (out ? '<div class="sold">SOLD OUT</div>' : '') + '</div>' +
+      '<span class="tag">' + esc(p.category) + '</span>' + (out ? '<div class="sold">SOLD OUT</div>' : (left <= 3 ? '<span class="low-tag">Only ' + left + ' left</span>' : '')) + '</div>' +
       '<div class="body"><h3>' + esc(p.name) + '</h3><div class="price">' + money(p.price) + '</div>' +
       '<div class="actions"><button class="btn btn-o" data-add="' + esc(p.id) + '" ' + (out ? 'disabled' : '') + '>Add to cart</button>' +
       '<a class="btn btn-g" ' + (out ? 'aria-disabled="true" style="opacity:.5;pointer-events:none"' : 'href="' + esc(waLink(singleMsg(p))) + '" target="_blank" rel="noopener"') + '>Order now</a></div></div></article>';
   }).join('');
 }
-function cartEntries() { return Object.keys(cart).map(id => ({ p: byId(id), q: cart[id] })).filter(e => e.p && e.q > 0); }
+function cartEntries() { return Object.keys(cart).map(id => { const p = byId(id); return { p, q: p ? Math.min(cart[id], MU.stockOf(p)) : 0 }; }).filter(e => e.p && e.q > 0); }
 function renderCart() {
   const es = cartEntries();
   const n = es.reduce((a, e) => a + e.q, 0), total = es.reduce((a, e) => a + e.q * Number(e.p.price), 0);
   $('#count').textContent = n; $('#total').textContent = money(total);
   $('#send').disabled = !n;
   $('#items').innerHTML = es.length ? es.map(e => '<div class="line"><img src="' + esc(e.p.image_url || '') + '" alt="">' +
-    '<div><div class="n">' + esc(e.p.name) + '</div><div class="qty"><button data-dec="' + esc(e.p.id) + '">−</button><span>' + e.q + '</span><button data-inc="' + esc(e.p.id) + '">+</button></div></div>' +
+    '<div><div class="n">' + esc(e.p.name) + '</div><div class="qty"><button data-dec="' + esc(e.p.id) + '">−</button><span>' + e.q + '</span><button data-inc="' + esc(e.p.id) + '"' + (e.q >= MU.stockOf(e.p) ? ' disabled title="No more in stock"' : '') + '>+</button></div></div>' +
     '<strong>' + money(e.q * Number(e.p.price)) + '</strong></div>').join('') : '<div class="empty" style="padding:40px 0">Your cart is empty.</div>';
 }
-function change(id, d) { cart[id] = Math.max(0, (cart[id] || 0) + d); if (!cart[id]) delete cart[id]; saveCart(); renderCart(); }
+function change(id, d) { const p = byId(id), max = p ? MU.stockOf(p) : 0; cart[id] = Math.min(max, Math.max(0, (cart[id] || 0) + d)); if (!cart[id]) delete cart[id]; saveCart(); renderCart(); }
 
 function openEl(el) { $('#ov').classList.add('open'); el.classList.add('open'); }
 function closeAll() { ['#ov', '#modal', '#drawer'].forEach(s => $(s).classList.remove('open')); }
@@ -117,7 +117,7 @@ function view(id) {
   const p = byId(id); if (!p) return; viewing = p;
   $('#mImg').src = p.image_url || ''; $('#mImg').alt = p.name; $('#mCat').textContent = p.category;
   $('#mName').textContent = p.name; $('#mPrice').textContent = money(p.price); $('#mDesc').textContent = p.description || '';
-  const out = p.in_stock === false;
+  const out = MU.stockOf(p) === 0;
   $('#mAdd').disabled = out; $('#mWa').href = out ? '#' : waLink(singleMsg(p)); $('#mWa').style.opacity = out ? .5 : 1; $('#mWa').style.pointerEvents = out ? 'none' : '';
   openEl($('#modal'));
 }

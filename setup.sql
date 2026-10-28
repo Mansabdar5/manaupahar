@@ -8,7 +8,7 @@ create table if not exists public.products (
   price numeric not null,
   description text,
   image_url text,
-  in_stock boolean not null default true,
+  stock integer not null default 1 check (stock >= 0),
   created_at timestamptz not null default now()
 );
 
