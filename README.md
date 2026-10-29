@@ -1,4 +1,4 @@
-# ManaUpahar – gift shop with WhatsApp ordering
+# ManaUpahar – Handicraft Gift Shop
 
 - **Shop (customers):** `yoursite.vercel.app`
 - **Admin (you):** `yoursite.vercel.app/admin` – add gifts, photos, prices, change WhatsApp number
