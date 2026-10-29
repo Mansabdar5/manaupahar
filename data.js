@@ -17,24 +17,24 @@
     '<rect width="400" height="400" fill="url(#g)"/><text x="200" y="245" font-size="150" text-anchor="middle">' + emoji + '</text></svg>');
 
   const sample = [
-    { id: 's1', name: 'Personalised Photo Frame', category: 'Personalised', price: 599, description: 'Wooden frame with your favourite memory printed and engraved with a short message.', image_url: ph('🖼️', '#FFE7CC', '#FDBA74'), stock: 12 },
-    { id: 's2', name: 'Birthday Surprise Box', category: 'Birthday', price: 1299, description: 'Chocolates, a handwritten card, balloons and a small plush toy in a gift box.', image_url: ph('🎂', '#FFE4E6', '#FDA4AF'), stock: 5 },
-    { id: 's3', name: 'Anniversary Rose Hamper', category: 'Anniversary', price: 1799, description: 'Fresh roses with chocolates and a scented candle, wrapped with a green ribbon.', image_url: ph('🌹', '#FEE2E2', '#FCA5A5'), stock: 2 },
-    { id: 's4', name: 'Festive Dry Fruit Hamper', category: 'Festival', price: 999, description: 'Premium almonds, cashews and raisins in a reusable decorative box.', image_url: ph('🎁', '#DCFCE7', '#86EFAC'), stock: 8 },
-    { id: 's5', name: 'Baby Welcome Set', category: 'Baby & Kids', price: 1499, description: 'Soft blanket, rattle and a keepsake for the newest family member.', image_url: ph('🧸', '#E0F2FE', '#7DD3FC'), stock: 0 },
-    { id: 's6', name: 'Handcrafted Table Lamp', category: 'Home Décor', price: 849, description: 'Warm ambient lamp that makes a lovely housewarming present.', image_url: ph('🪔', '#FEF9C3', '#FDE047'), stock: 6 }
+    { id: 's1', name: 'Hand-painted Terracotta Planter', category: 'Home Décor', price: 499, description: 'A charming hand-painted terracotta planter, finished by local artisans. Each piece has its own character and subtle variations.', image_url: ph('🪴', '#E9D7BE', '#C6A27A'), stock: 12 },
+    { id: 's2', name: 'Handwoven Jute Gift Hamper', category: 'Gift Hampers', price: 899, description: 'A reusable handwoven jute basket filled with thoughtful little treasures — a warm, sustainable gift for any occasion.', image_url: ph('🧺', '#E8D8B7', '#B99A6B'), stock: 5 },
+    { id: 's3', name: 'Artisan Beaded Jewellery Set', category: 'Jewellery', price: 699, description: 'A colourful handmade jewellery set assembled with care by artisans. A distinctive gift for birthdays and celebrations.', image_url: ph('📿', '#F0D8C8', '#C98D75'), stock: 2 },
+    { id: 's4', name: 'Carved Wooden Keepsake Box', category: 'Woodcraft', price: 799, description: 'A decorative wooden keepsake box with a traditional carved look — perfect for jewellery, letters and treasured memories.', image_url: ph('🪵', '#E6D0AE', '#A77B51'), stock: 8 },
+    { id: 's5', name: 'Handmade Festive Diya Set', category: 'Festive Gifts', price: 399, description: 'A set of artisan-made clay diyas to bring a warm handmade touch to festive tables, puja corners and celebrations.', image_url: ph('🪔', '#F4E0A6', '#D9A441'), stock: 0 },
+    { id: 's6', name: 'Block-Printed Cotton Tote', category: 'Textiles', price: 549, description: 'A reusable cotton tote with a traditional block-print inspired pattern — practical, beautiful and easy to gift.', image_url: ph('👜', '#E2E8D5', '#9BAA83'), stock: 6 }
   ];
 
   // Demo extras so the new features can be tried straight away
   sample[0].images = [sample[0].image_url, ph('🎁', '#E0F2FE', '#7DD3FC'), ph('✨', '#FEF9C3', '#FDE047')];
-  sample[0].personalise = true; sample[0].personalise_label = 'Name or message to print on the frame';
+  sample[0].personalise = true; sample[0].personalise_label = 'Name or short message (optional)';
   sample[1].featured = true; sample[2].featured = true; sample[5].created_at = new Date().toISOString();
-  sample[1].personalise = true; sample[1].personalise_label = 'Name and age for the card';
+  sample[1].personalise = true; sample[1].personalise_label = 'Gift note or recipient name';
 
   const sampleAddons = [
     { id: 'a1', name: 'Gift wrapping', price: 49, per_item: true, active: true },
     { id: 'a2', name: 'Greeting card (write your message on WhatsApp)', price: 29, per_item: false, active: true },
-    { id: 'a3', name: 'Extra chocolates', price: 99, per_item: false, active: true }
+    { id: 'a3', name: 'Handmade greeting tag', price: 99, per_item: false, active: true }
   ];
   const sampleZones = [
     { id: 'z1', label: 'Local delivery', pincodes: '500', charge: 60, free_above: 1500, active: true },

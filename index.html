@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ManaUpahar – Where Every Gift Carries a Memory</title>
-<meta name="description" content="Beautiful gifts for every occasion. Pick your gift and order instantly on WhatsApp.">
+<title>ManaUpahar | Handcrafted Gifts & Artisan Treasures</title>
+<meta name="description" content="Discover handcrafted gifts, artisan home décor, thoughtful keepsakes and handmade treasures. Order directly on WhatsApp.">
 <meta name="theme-color" content="#f97316">
 <link rel="icon" href="favicon.png">
 <link rel="stylesheet" href="styles.css">
@@ -17,10 +17,11 @@
 </div></div>
 
 <section class="hero"><div class="container">
-  <h1>Where Every Gift <span>Carries a Memory</span></h1>
-  <p>Choose a gift for any occasion and place your order directly on WhatsApp. Simple, personal and quick.</p>
-  <div class="search"><input id="q" type="search" placeholder="Search gifts…" aria-label="Search gifts"></div>
-  <div class="how"><span>Pick your gifts</span><span>Send order on WhatsApp</span><span>We confirm &amp; deliver</span></div>
+  <p class="eyebrow">HANDMADE WITH HEART · ROOTED IN TRADITION</p>
+  <h1>Gifts with a <span>Human Touch</span></h1>
+  <p>Explore meaningful handmade treasures crafted by skilled artisans — from earthy home décor to personal keepsakes made to be cherished.</p>
+  <div class="search"><input id="q" type="search" placeholder="Search handcrafted gifts…" aria-label="Search gifts"></div>
+  <div class="how"><span>Made by artisans</span><span>Thoughtful, one-of-a-kind finds</span><span>Easy WhatsApp ordering</span></div>
 </div></section>
 
 <main class="container">
@@ -40,7 +41,7 @@
 
 <footer class="foot">
   <div class="container" id="footGrid"></div>
-  <strong>ManaUpahar</strong> – Where Every Gift Carries a Memory<br>
+  <strong>ManaUpahar</strong> – Handcrafted gifts, made meaningful<br>
   <span id="footNote"></span>
 </footer>
 
@@ -372,7 +373,7 @@ document.addEventListener('input', e => {
 });
 $('#mShare').onclick = async () => {
   if (!viewing) return;
-  const url = shareUrl(viewing.id), data = { title: viewing.name + ' – ManaUpahar', text: 'Look at this gift: ' + viewing.name + ' (' + money(viewing.price) + ')', url };
+  const url = shareUrl(viewing.id), data = { title: viewing.name + ' – ManaUpahar Handmade Gifts', text: 'Discover this handcrafted treasure: ' + viewing.name + ' (' + money(viewing.price) + ')', url };
   try { if (navigator.share) { await navigator.share(data); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (e) { window.prompt('Copy this link', url); }
 };
@@ -381,11 +382,11 @@ function renderFooter() {
   const cols = [];
   if (settings.about) cols.push('<div><h4>About us</h4><p>' + esc(settings.about) + '</p></div>');
   if (settings.delivery) cols.push('<div><h4>Delivery &amp; returns</h4><p>' + esc(settings.delivery) + '</p></div>');
-  const links = ['<a href="' + esc(waLink('Hello ManaUpahar! I have a question about your gifts.')) + '" target="_blank" rel="noopener">Chat on WhatsApp</a>'];
+  const links = ['<a href="' + esc(waLink('Hello ManaUpahar! I have a question about your handcrafted gifts.')) + '" target="_blank" rel="noopener">Chat on WhatsApp</a>'];
   if (/^https?:\/\//i.test(settings.instagram || '')) links.push('<a href="' + esc(settings.instagram) + '" target="_blank" rel="noopener">Instagram</a>');
   cols.push('<div><h4>Contact</h4><p>' + links.join('\n') + '</p></div>');
   $('#footGrid').innerHTML = cols.join('');
-  $('#waFloat').href = waLink('Hello ManaUpahar! I have a question about your gifts.');
+  $('#waFloat').href = waLink('Hello ManaUpahar! I have a question about your handcrafted gifts.');
 }
 
 (async function init() {
