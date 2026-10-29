@@ -46,6 +46,7 @@
 
 <a class="wa-float" id="waFloat" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">💬 <span>Chat with us</span></a>
 <div class="toast" id="toast"></div>
+<div class="sentbar" id="sentBar" role="status"><span id="sentTxt"></span><a id="sentLink" target="_blank" rel="noopener">Open WhatsApp again</a><button type="button" id="sentX" aria-label="Dismiss">×</button></div>
 
 <div class="overlay" id="ov"></div>
 
@@ -87,7 +88,7 @@
 <script>
 const $ = s => document.querySelector(s);
 const esc = MU.esc, money = MU.money;
-let addons = [], zones = [], chosen = new Set(), pincode = '', sent = null;
+let addons = [], zones = [], chosen = new Set(), pincode = '';
 try { chosen = new Set(JSON.parse(localStorage.getItem('mu_addons') || '[]').map(String)); pincode = localStorage.getItem('mu_pin') || ''; } catch (e) {}
 let products = [], settings = {}, cat = 'All', term = '', sortBy = 'rec', budget = 'all', deliveryDate = '';
 try { deliveryDate = localStorage.getItem('mu_date') || ''; } catch (e) {}
@@ -218,11 +219,19 @@ function placeOrder(es, fromCart) {
 }
 // Start fresh once an order has been sent. The pincode is kept because most customers reuse it.
 function resetAfterOrder(ref, url, fromCart) {
-  sent = { ref, url };
   if (fromCart) { cart = {}; saveCart(); }
   chosen.clear(); deliveryDate = '';
   try { localStorage.setItem('mu_addons', '[]'); localStorage.setItem('mu_date', ''); } catch (e) {}
-  closeAll(); renderOptions(); renderCart(); openEl($('#drawer'));
+  closeAll(); renderOptions(); renderCart();
+  showSentBar(ref, url);
+}
+// Small bar at the bottom: confirms the order and lets the customer reopen WhatsApp if it did not open.
+function showSentBar(ref, url) {
+  const bar = $('#sentBar');
+  $('#sentTxt').innerHTML = '✅ Order <b>' + esc(ref) + '</b> is ready. Press <b>Send</b> in WhatsApp to place it.';
+  $('#sentLink').href = url;
+  bar.classList.add('show');
+  clearTimeout(showSentBar.t); showSentBar.t = setTimeout(() => bar.classList.remove('show'), 30000);
 }
 
 function renderCats() {
@@ -275,19 +284,14 @@ function renderCart() {
     '<div class="total"><span>Total</span><span>' + money(T.total) + '</span></div>' : '<div class="total"><span>Total</span><span>₹0</span></div>';
   document.querySelectorAll('[data-pinstat]').forEach(el => el.textContent = deliveryText(T, T.sub));
   $('#send').disabled = !T.qty || T.blocked;
-  const sentHtml = sent ? '<div class="sent"><div class="tick">✅</div><h3>Your order is ready on WhatsApp</h3>' +
-    '<p>Order reference <b>' + esc(sent.ref) + '</b>.<br>Please press <b>Send</b> in WhatsApp so we receive it. We will confirm delivery and payment there.</p>' +
-    '<a class="btn btn-g" href="' + esc(sent.url) + '" target="_blank" rel="noopener">Open WhatsApp again</a>' +
-    '<button class="btn btn-o" type="button" data-keep>Continue shopping</button></div>' : '';
-  $('#items').innerHTML = sentHtml + (es.length ? es.map(e => { const id = esc(e.p.id); return '<div class="line"><img src="' + esc(cover(e.p)) + '" alt="">' +
+  $('#items').innerHTML = (es.length ? es.map(e => { const id = esc(e.p.id); return '<div class="line"><img src="' + esc(cover(e.p)) + '" alt="">' +
     '<div><div class="n">' + esc(e.p.name) + '</div><div class="qty"><button data-dec="' + id + '">−</button><span>' + e.q + '</span><button data-inc="' + id + '"' + (e.q >= MU.stockOf(e.p) ? ' disabled title="No more in stock"' : '') + '>+</button></div>' +
     (e.p.personalise ? '<input class="line-note" data-note="' + id + '" maxlength="200" value="' + esc(e.note) + '" placeholder="' + esc(noteLabel(e.p)) + '">' : '') + '</div>' +
     '<strong>' + money(e.q * Number(e.p.price)) + '</strong></div>'; }).join('')
-    : (sent ? '' : '<div class="empty" style="padding:40px 0">Your cart is empty.</div>'));
+    : '<div class="empty" style="padding:40px 0">Your cart is empty.</div>');
 }
 function change(id, d, note) {
   const p = byId(id), max = p ? MU.stockOf(p) : 0, cur = cart[id] || { q: 0, note: '' };
-  sent = null;
   const q = Math.min(max, Math.max(0, cur.q + d));
   if (!q) delete cart[id]; else cart[id] = { q, note: note !== undefined ? note : cur.note };
   saveCart(); renderCart();
@@ -343,10 +347,10 @@ $('#closeCart').onclick = $('#closeModal').onclick = $('#ov').onclick = closeAll
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll(); });
 $('#mAdd').onclick = () => { if (viewing) { change(viewing.id, 1, $('#mNote').value.trim()); closeAll(); openEl($('#drawer')); } };
 $('#mOrder').onclick = () => { if (viewing && MU.stockOf(viewing)) placeOrder([{ p: viewing, q: 1, note: $('#mNote').value.trim() }], false); };
+$('#sentX').onclick = () => $('#sentBar').classList.remove('show');
 $('#send').onclick = () => placeOrder(cartEntries(), true);
 $('#sort').onchange = e => { sortBy = e.target.value; renderGrid(); };
 $('#budget').onchange = e => { budget = e.target.value; renderGrid(); };
-document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-keep]')) { sent = null; closeAll(); renderCart(); } });
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.matches && t.matches('[data-date]')) onDate(t.value);
