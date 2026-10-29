@@ -3,7 +3,7 @@
   const C = window.MU_CONFIG || {};
   const live = !!(C.SUPABASE_URL && C.SUPABASE_ANON_KEY && window.supabase);
   const sb = live ? window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY) : null;
-  const K = { p: 'mu_demo_products', s: 'mu_demo_settings', a: 'mu_demo_admin' };
+  const K = { p: 'mu_demo_products', s: 'mu_demo_settings', a: 'mu_demo_admin', o: 'mu_demo_orders' };
 
   const rd = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const wr = (k, v) => {
@@ -24,6 +24,11 @@
     { id: 's5', name: 'Baby Welcome Set', category: 'Baby & Kids', price: 1499, description: 'Soft blanket, rattle and a keepsake for the newest family member.', image_url: ph('🧸', '#E0F2FE', '#7DD3FC'), stock: 0 },
     { id: 's6', name: 'Handcrafted Table Lamp', category: 'Home Décor', price: 849, description: 'Warm ambient lamp that makes a lovely housewarming present.', image_url: ph('🪔', '#FEF9C3', '#FDE047'), stock: 6 }
   ];
+
+  // Demo extras so the new features can be tried straight away
+  sample[0].images = [sample[0].image_url, ph('🎁', '#E0F2FE', '#7DD3FC'), ph('✨', '#FEF9C3', '#FDE047')];
+  sample[0].personalise = true; sample[0].personalise_label = 'Name or message to print on the frame';
+  sample[1].personalise = true; sample[1].personalise_label = 'Name and age for the card';
 
   const defaults = { whatsapp: C.DEFAULT_WHATSAPP || '919999999999', note: 'Delivery and payment details will be confirmed with you on WhatsApp.' };
 
@@ -49,6 +54,8 @@
   const MU = {
     live,
     esc: s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])),
+    imagesOf: p => (p && p.images && p.images.length) ? p.images : (p && p.image_url ? [p.image_url] : []),
+    genRef: () => 'MU-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
     stockOf: p => Math.max(0, Number(p && p.stock != null ? p.stock : (p && p.in_stock === false ? 0 : 1)) || 0),
     money: n => '₹' + Number(n || 0).toLocaleString('en-IN'),
 
@@ -84,13 +91,15 @@
       if (error) throw error;
     },
     async saveProduct(p) {
+      const keys = ['name', 'category', 'price', 'description', 'image_url', 'stock', 'images', 'personalise', 'personalise_label'];
+      const row = {};
+      keys.forEach(k => { if (p[k] !== undefined) row[k] = p[k]; });
       if (!live) {
         const list = rd(K.p, sample).slice();
-        if (p.id) { const i = list.findIndex(x => x.id === p.id); if (i >= 0) list[i] = Object.assign({}, list[i], p); }
-        else list.unshift(Object.assign({ id: 'd' + Date.now() }, p));
+        if (p.id) { const i = list.findIndex(x => x.id === p.id); if (i >= 0) list[i] = Object.assign({}, list[i], row); }
+        else list.unshift(Object.assign({ id: 'd' + Date.now() }, row));
         wr(K.p, list); return;
       }
-      const row = { name: p.name, category: p.category, price: p.price, description: p.description, image_url: p.image_url, stock: p.stock };
       const q = p.id ? sb.from('products').update(row).eq('id', p.id) : sb.from('products').insert(row);
       const { error } = await q;
       if (error) throw error;
@@ -107,6 +116,44 @@
       const { error } = await sb.storage.from('gifts').upload(name, blob, { contentType: 'image/jpeg', cacheControl: '31536000' });
       if (error) throw error;
       return sb.storage.from('gifts').getPublicUrl(name).data.publicUrl;
+    },
+
+    // ---- Orders ----
+    async saveOrder(o) {
+      if (!live) {
+        const l = rd(K.o, []);
+        l.unshift({ id: 'o' + Date.now() + Math.random().toString(36).slice(2, 5), ref: o.ref, items: o.items, total: o.total, status: 'new', created_at: new Date().toISOString() });
+        wr(K.o, l); return;
+      }
+      const { error } = await sb.from('orders').insert({ ref: o.ref, items: o.items, total: o.total });
+      if (error) throw error;
+    },
+    async getOrders() {
+      if (!live) return rd(K.o, []);
+      const { data, error } = await sb.from('orders').select('*').order('created_at', { ascending: false }).limit(300);
+      if (error) throw error;
+      return data || [];
+    },
+    // Confirming or delivering takes items out of stock; cancelling or moving back to New puts them back.
+    async setOrderStatus(id, status) {
+      if (live) {
+        const { error } = await sb.rpc('set_order_status', { order_id: id, new_status: status });
+        if (error) throw error;
+        return;
+      }
+      const orders = rd(K.o, []), o = orders.find(x => x.id === id);
+      if (!o) throw new Error('Order not found');
+      const active = s => s === 'confirmed' || s === 'delivered';
+      if (active(status) !== active(o.status)) {
+        const sign = active(status) ? -1 : 1;
+        const list = rd(K.p, sample).slice();
+        o.items.forEach(it => {
+          const p = list.find(x => String(x.id) === String(it.id));
+          if (p) p.stock = Math.max(0, MU.stockOf(p) + sign * (Number(it.qty) || 0));
+        });
+        wr(K.p, list);
+      }
+      o.status = status; wr(K.o, orders);
     },
 
     async session() {

@@ -33,19 +33,26 @@ Double-click `index.html`. It opens in **demo mode** with sample gifts. Open `ad
 ## Your logo
 Your logo is already included (`logo-header.png` appears in the page header, `favicon.png` is the browser tab icon). To change it later, replace those files and keep the same names. File names are case-sensitive on Vercel, so keep them lowercase.
 
-## Upgrading an existing site to the stock feature
-Already set up before this update? Run `upgrade-stock.sql` once: Supabase → **SQL Editor** → **New query** → paste → **Run**. Then upload the changed files to GitHub. New installs do not need it, because `setup.sql` already includes stock.
+## Upgrading an existing site
+New installs skip this, because `setup.sql` already includes everything.
+
+Already live? In Supabase → **SQL Editor** → **New query**, paste and **Run** these files **one at a time, once each**:
+1. `upgrade-stock.sql` (only if you have not run it before)
+2. `upgrade-v3.sql` (multiple photos, personalisation, orders)
+
+Run the SQL **before** uploading the new files to GitHub. Then upload the changed files and Vercel republishes by itself. Keep your own `config.js`.
 
 ## Daily use
 1. Open `yoursite.vercel.app/admin` and log in.
-2. **Gifts → Add a gift:** name, price, category, photo, Save. It appears on the shop immediately.
+2. **Gifts → Add a gift:** name, price, category, stock and **up to 6 photos**. Use **Make cover** to choose the main photo. It appears on the shop immediately.
+   Tick **Customers can personalise** to show a box where the customer types a name or message (you choose the question, for example "Name to print on the frame"). It is added to their WhatsApp order.
 3. **Stock:** every gift has a stock number. Use **−** when you sell one and **+** when you restock, or type the exact number under **Edit**. At **0** the shop shows **SOLD OUT** on the photo and the order buttons are disabled. With 3 or fewer left, customers see "Only N left", and they cannot add more to the cart than you have.
-   Orders arrive on WhatsApp, so the website does not reduce stock by itself. Press **−** once you confirm an order.
-4. **Edit / Delete** gifts from the list below.
-5. **Settings:** change the WhatsApp number that receives orders.
+4. **Orders tab:** when a customer taps the WhatsApp button, the order appears here as **New** with a reference such as `MU-AB12C` (the same reference is in their WhatsApp message). After you agree the order on WhatsApp, press **Confirm**: the stock goes down automatically. Then **Mark delivered** when done. **Cancel** puts the stock back.
+5. **Edit / Delete** gifts from the list below.
+6. **Settings:** change the WhatsApp number that receives orders.
 
 ## How customers order
-Customers browse by category, tap **Order now** (one gift) or **Add to cart** for several, then **Send order on WhatsApp**. WhatsApp opens with the gift list and total already typed; they add name, address and delivery date and send. You confirm payment and delivery in the chat.
+Customers browse by category, tap a gift to see all its photos, type their personalisation if offered, tap **Order now** (one gift) or **Add to cart** for several, then **Send order on WhatsApp**. WhatsApp opens with the gift list and total already typed; they add name, address and delivery date and send. You confirm payment and delivery in the chat.
 
 ## Changing things later
 - Updated a file on GitHub (for example `config.js` or `logo.png`)? Vercel republishes automatically.
