@@ -185,3 +185,21 @@ input:focus, textarea:focus { outline: 2px solid #fdba74; border-color: var(--or
 .brow .bar { height: 10px; background: #fde7d3; border-radius: 999px; overflow: hidden; }
 .brow .bar i { display: block; height: 100%; background: var(--orange); border-radius: 999px; }
 @media (max-width: 640px) { .brow { grid-template-columns: 1fr auto; } .brow .bar { grid-column: 1/-1; } .wa-float span { display: none; } .wa-float { padding: 14px; } }
+
+/* Extras, delivery and totals */
+.opts { display: grid; gap: 10px; }
+.opts:empty { display: none; }
+.opt-t { display: block; font-weight: 700; font-size: .9rem; color: var(--navy); margin: 0 0 4px; }
+.opt input[type=text], .opt input[type=date] { width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 10px; font: inherit; }
+.opt-row { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; margin: 0; padding: 6px 0; font-weight: 500; }
+.opt-row small { color: var(--muted); }
+.opt-row b { color: var(--orange-d); }
+.opt-s { font-size: .82rem; color: var(--muted); margin-top: 4px; min-height: 1em; }
+.sumbox { display: grid; gap: 4px; }
+.srow { display: flex; justify-content: space-between; font-size: .9rem; color: var(--muted); }
+.sumline { color: var(--navy); }
+.sumline small { color: var(--muted); }
+.drawer footer { max-height: 62vh; overflow: auto; }
+.tabs { flex-wrap: wrap; }
+.item.plain { grid-template-columns: 1fr auto; }
+@media (max-width: 640px) { .item.plain { grid-template-columns: 1fr; } }

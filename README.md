@@ -40,6 +40,7 @@ Already live? In Supabase → **SQL Editor** → **New query**, paste and **Run*
 1. `upgrade-stock.sql` (only if you have not run it before)
 2. `upgrade-v3.sql` (multiple photos, personalisation, orders)
 3. `upgrade-v4.sql` (best sellers, delivery dates)
+4. `upgrade-v5.sql` (add-ons, delivery charges by pincode)
 
 Run the SQL **before** uploading the new files to GitHub. Then upload the changed files and Vercel republishes by itself. Keep your own `config.js`.
 
@@ -51,8 +52,12 @@ Run the SQL **before** uploading the new files to GitHub. Then upload the change
 4. **Orders tab:** when a customer taps the WhatsApp button, the order appears here as **New** with a reference such as `MU-AB12C` (the same reference is in their WhatsApp message). After you agree the order on WhatsApp, press **Confirm**: the stock goes down automatically. Then **Mark delivered** when done. **Cancel** puts the stock back.
 5. **Best sellers:** tick "Show as Best seller" on a gift to give it a ⭐ badge and show it first in the shop. Gifts added in the last 14 days get a "New" badge automatically.
 6. **Summary tab:** new orders waiting, orders and sales this month, all-time sales, your top 5 sellers, and gifts running low. It counts only orders you have confirmed.
-7. **Edit / Delete** gifts from the list below.
-8. **Settings:** WhatsApp number, how many days you need to prepare an order (customers cannot pick an earlier delivery date), and the About us, Delivery and returns and Instagram details shown in the shop footer.
+7. **Add-ons & Delivery tab:**
+   - **Add-ons** are optional extras customers can tick, like gift wrapping (₹49) or a greeting card (₹29). Tick "Charge for every gift" for things like wrapping, so 2 gifts cost 2 × ₹49. Use **Hide** to switch one off without deleting it.
+   - **Delivery charges by pincode:** add one area for each charge, for example "Within the city, ₹60, free above ₹1,500". List pincodes separated by commas. A full 6-digit pincode matches exactly. 3 to 5 digits (like `500`) cover every pincode starting with them, and the longest match wins.
+   - Tick **Only deliver to the pincodes listed** if you do not want orders from elsewhere. Otherwise, unlisted pincodes see "we will confirm the delivery charge on WhatsApp".
+8. **Edit / Delete** gifts from the list below.
+9. **Settings:** WhatsApp number, how many days you need to prepare an order (customers cannot pick an earlier delivery date), and the About us, Delivery and returns and Instagram details shown in the shop footer.
 
 ## How customers order
 Customers browse by category, tap a gift to see all its photos, type their personalisation if offered, tap **Order now** (one gift) or **Add to cart** for several, then **Send order on WhatsApp**. WhatsApp opens with the gift list and total already typed; they add name, address and delivery date and send. You confirm payment and delivery in the chat.
@@ -61,6 +66,7 @@ Customers browse by category, tap a gift to see all its photos, type their perso
 - A green **Chat with us** button on every page for questions that are not orders.
 - **Sort** (recommended, newest, price) and **budget** filters. Sold-out gifts always go to the end.
 - A **Share** button on each gift. It sends a link like `yoursite.com/?gift=...` that opens that gift directly. The link preview shows the shop name, not the gift photo.
+- Optional **extras** and a **pincode check** in the cart and on each gift page, with the total broken down into gifts, extras and delivery. The same lines go into the WhatsApp message and the order in admin.
 - An optional **delivery date** in the cart and gift pages. It is added to the WhatsApp message and shown on the order in admin.
 
 ## Changing things later

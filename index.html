@@ -61,10 +61,8 @@
       <label for="mNote" id="mNoteLabel">Personalise</label>
       <textarea id="mNote" maxlength="200" placeholder="Type here (optional)"></textarea>
     </div>
-    <div class="note-field" id="mDateBox">
-      <label for="mDate">📅 Delivery date (optional)</label>
-      <input type="date" id="mDate">
-    </div>
+    <div class="opts" id="mOpts"></div>
+    <div class="sumline" id="mSum"></div>
     <div class="actions" style="margin-top:auto">
       <button class="btn btn-o" id="mAdd">Add to cart</button>
       <button class="btn btn-g" id="mOrder">Order on WhatsApp</button>
@@ -76,8 +74,8 @@
   <header>Your cart <button class="x" id="closeCart" aria-label="Close">×</button></header>
   <div class="items" id="items"></div>
   <footer>
-    <div><label for="cDate" style="margin:0 0 4px">📅 Delivery date (optional)</label><input type="date" id="cDate"></div>
-    <div class="total"><span>Total</span><span id="total">₹0</span></div>
+    <div class="opts" id="cOpts"></div>
+    <div class="sumbox" id="sumBox"></div>
     <button class="btn btn-g" id="send" style="padding:14px">Send order on WhatsApp</button>
     <div class="note" id="note"></div>
   </footer>
@@ -89,6 +87,8 @@
 <script>
 const $ = s => document.querySelector(s);
 const esc = MU.esc, money = MU.money;
+let addons = [], zones = [], chosen = new Set(), pincode = '';
+try { chosen = new Set(JSON.parse(localStorage.getItem('mu_addons') || '[]').map(String)); pincode = localStorage.getItem('mu_pin') || ''; } catch (e) {}
 let products = [], settings = {}, cat = 'All', term = '', sortBy = 'rec', budget = 'all', deliveryDate = '';
 try { deliveryDate = localStorage.getItem('mu_date') || ''; } catch (e) {}
 let cart = {};
@@ -117,7 +117,7 @@ function dateFrom(days) { const d = new Date(); d.setDate(d.getDate() + days); r
 function fmtDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); }
 function syncDates() {
   if (deliveryDate && deliveryDate < dateFrom(leadDays())) deliveryDate = '';
-  ['#cDate', '#mDate'].forEach(s => { const el = $(s); el.min = dateFrom(leadDays()); el.max = dateFrom(180); el.value = deliveryDate; });
+  document.querySelectorAll('[data-date]').forEach(el => { el.min = dateFrom(leadDays()); el.max = dateFrom(180); el.value = deliveryDate; });
 }
 function onDate(v) {
   if (v && v < dateFrom(leadDays())) { toast('We need at least ' + leadDays() + ' day' + (leadDays() === 1 ? '' : 's') + ' to prepare. Please pick a later date.'); v = ''; }
@@ -126,12 +126,81 @@ function onDate(v) {
 }
 function noteLabel(p) { return p.personalise_label || 'Personalisation'; }
 
+// Which delivery area a pincode belongs to. A longer match wins (full 6 digits beat a 3-digit area).
+function zoneFor(pin) {
+  if (!/^\d{6}$/.test(pin)) return null;
+  let best = null, len = -1;
+  zones.forEach(z => String(z.pincodes || '').split(/[\s,;]+/).filter(t => /^\d{3,6}$/.test(t)).forEach(t => {
+    if (pin.startsWith(t) && t.length > len) { best = z; len = t.length; }
+  }));
+  return best;
+}
+// Works out gifts + extras + delivery for a list of {p, q}
+function totals(es) {
+  const qty = es.reduce((a, e) => a + e.q, 0), sub = es.reduce((a, e) => a + e.q * Number(e.p.price), 0);
+  const ax = addons.filter(a => chosen.has(String(a.id))).map(a => { const q = a.per_item ? qty : 1; return { a, q, amt: q * Number(a.price) }; });
+  const axTotal = ax.reduce((s, x) => s + x.amt, 0), only = String(settings.zones_only) === '1';
+  let del = null;
+  if (zones.length) {
+    const z = zoneFor(pincode);
+    if (!/^\d{6}$/.test(pincode)) del = { status: only ? 'need' : 'none' };
+    else if (z) {
+      const free = z.free_above != null && z.free_above !== '' && (sub + axTotal) >= Number(z.free_above);
+      del = { status: 'ok', z, free, charge: free ? 0 : Number(z.charge) || 0 };
+    } else del = { status: only ? 'blocked' : 'unknown' };
+  }
+  const charge = del && del.status === 'ok' ? del.charge : 0;
+  return { qty, sub, ax, axTotal, del, charge, total: sub + axTotal + charge, blocked: !!del && (del.status === 'blocked' || del.status === 'need') };
+}
+function deliveryText(T, sub) {
+  const d = T.del; if (!d) return '';
+  if (d.status === 'ok') {
+    if (d.free) return '✅ Free delivery to ' + d.z.label;
+    let t = 'Delivery to ' + d.z.label + ': ' + money(d.charge);
+    if (d.z.free_above != null && d.z.free_above !== '') t += ' · free above ' + money(d.z.free_above) + ' (add ' + money(Math.max(0, Number(d.z.free_above) - sub - T.axTotal)) + ' more)';
+    return '🚚 ' + t;
+  }
+  if (d.status === 'unknown') return 'We will confirm the delivery charge for this pincode on WhatsApp.';
+  if (d.status === 'blocked') return '⚠️ Sorry, we do not deliver to this pincode yet.';
+  if (d.status === 'need') return 'Please enter your pincode so we can check delivery.';
+  return '';
+}
+function optionsHTML(k) {
+  let o = '';
+  if (addons.length) o += '<div class="opt"><div class="opt-t">➕ Add extras</div>' + addons.map(a =>
+    '<label class="opt-row"><input type="checkbox" data-addon="' + esc(a.id) + '"' + (chosen.has(String(a.id)) ? ' checked' : '') + '><span>' + esc(a.name) +
+    (a.per_item ? ' <small>(per gift)</small>' : '') + '</span><b>+' + money(a.price) + '</b></label>').join('') + '</div>';
+  if (zones.length) o += '<div class="opt"><label class="opt-t" for="' + k + 'Pin">🚚 Delivery pincode' + (String(settings.zones_only) === '1' ? '' : ' (optional)') + '</label>' +
+    '<input type="text" inputmode="numeric" maxlength="6" id="' + k + 'Pin" data-pin placeholder="6-digit pincode" value="' + esc(pincode) + '"><div class="opt-s" data-pinstat></div></div>';
+  o += '<div class="opt"><label class="opt-t" for="' + k + 'Date">📅 Delivery date (optional)</label><input type="date" id="' + k + 'Date" data-date></div>';
+  return o;
+}
+function renderOptions() { $('#cOpts').innerHTML = optionsHTML('c'); $('#mOpts').innerHTML = optionsHTML('m'); syncDates(); }
+function refreshSummary() {
+  renderCart();
+  if (viewing) renderModalSum();
+}
+function renderModalSum() {
+  if (!viewing) return;
+  const T = totals([{ p: viewing, q: 1 }]), out = MU.stockOf(viewing) === 0;
+  const parts = [];
+  if (T.axTotal) parts.push('extras ' + money(T.axTotal));
+  if (T.del && T.del.status === 'ok') parts.push(T.del.free ? 'free delivery' : 'delivery ' + money(T.charge));
+  $('#mSum').innerHTML = out ? '' : '<b>Total ' + money(T.total) + '</b>' + (parts.length ? ' <small>(' + money(T.sub) + ' gift + ' + parts.join(' + ') + ')</small>' : '');
+  document.querySelectorAll('[data-pinstat]').forEach(el => el.textContent = deliveryText(T, T.sub));
+  $('#mOrder').disabled = out || T.blocked;
+}
+
 // Builds the WhatsApp message, opens WhatsApp, and saves the order so the shop owner can track it.
 function placeOrder(es) {
   if (!es.length) return;
-  const total = es.reduce((a, e) => a + e.q * Number(e.p.price), 0);
-  const items = es.map(e => ({ id: e.p.id, name: e.p.name, price: Number(e.p.price), qty: e.q, note: (e.note || '').trim() }));
-  const date = deliveryDate || '';
+  const T = totals(es);
+  if (T.blocked) { toast(deliveryText(T, T.sub)); return; }
+  const items = es.map(e => ({ id: e.p.id, kind: 'gift', name: e.p.name, price: Number(e.p.price), qty: e.q, note: (e.note || '').trim() }));
+  T.ax.forEach(x => items.push({ id: 'addon:' + x.a.id, kind: 'addon', name: x.a.name, price: Number(x.a.price), qty: x.q }));
+  if (T.del && T.del.status === 'ok') items.push({ id: 'delivery', kind: 'delivery', name: 'Delivery – ' + T.del.z.label + ' (' + pincode + ')' + (T.del.free ? ' free' : ''), price: T.charge, qty: 1 });
+  else if (T.del && T.del.status === 'unknown') items.push({ id: 'delivery', kind: 'delivery', name: 'Delivery – charge to be confirmed (' + pincode + ')', price: 0, qty: 1 });
+  const total = T.total, date = deliveryDate || '';
   const sig = JSON.stringify([items, date]);
   let ref = MU.genRef(), save = true;
   try { // pressing the button again for the same basket within 10 minutes reuses the order, so you do not get duplicates
@@ -139,8 +208,14 @@ function placeOrder(es) {
     if (last && last.sig === sig && Date.now() - last.t < 600000) { ref = last.ref; save = false; }
     else sessionStorage.setItem('mu_last', JSON.stringify({ sig, ref, t: Date.now() }));
   } catch (e) {}
-  const lines = items.map((it, i) => (i + 1) + '. ' + it.name + ' × ' + it.qty + ' – ' + money(it.qty * it.price) +
-    (it.note ? '\n   ✍ ' + noteLabel(byId(it.id) || {}) + ': ' + it.note : ''));
+  const lines = [];
+  es.forEach((e, i) => {
+    lines.push((i + 1) + '. ' + e.p.name + ' × ' + e.q + ' – ' + money(e.q * Number(e.p.price)));
+    if ((e.note || '').trim()) lines.push('   ✍ ' + noteLabel(e.p) + ': ' + e.note.trim());
+  });
+  T.ax.forEach(x => lines.push('➕ ' + x.a.name + (x.q > 1 ? ' × ' + x.q : '') + ' – ' + money(x.amt)));
+  if (T.del && T.del.status === 'ok') lines.push('🚚 Delivery to ' + T.del.z.label + ' (' + pincode + '): ' + (T.del.free ? 'free' : money(T.charge)));
+  else if (T.del && T.del.status === 'unknown') lines.push('🚚 Delivery to ' + pincode + ': charge to be confirmed');
   const msg = 'Hello ManaUpahar! 🎁\nOrder ref: ' + ref + '\n\n' + lines.join('\n') + '\n\nTotal: ' + money(total) + '\n\nMy name:\nDelivery address:\nDelivery date:' + (date ? ' ' + fmtDate(date) : '');
   window.open(waLink(msg), '_blank', 'noopener');
   if (save) MU.saveOrder({ ref, items, total, delivery_date: date || null }).catch(err => console.error('Order not saved', err));
@@ -170,7 +245,7 @@ function renderGrid() {
       ? '<button class="btn btn-o" disabled>Add to cart</button><button class="btn btn-g" disabled>Order now</button>'
       : p.personalise
         ? '<button class="btn btn-g" data-view="' + id + '" style="grid-column:1/-1">Personalise &amp; order</button>'
-        : '<button class="btn btn-o" data-add="' + id + '">Add to cart</button><button class="btn btn-g" data-order="' + id + '">Order now</button>';
+        : '<button class="btn btn-o" data-add="' + id + '">Add to cart</button><button class="btn btn-g" data-view="' + id + '">Order now</button>';
     const badges = (!out && (p.featured || isNew(p))) ? '<div class="badges">' + (p.featured ? '<span class="b-best">⭐ Best seller</span>' : '') + (isNew(p) ? '<span class="b-new">New</span>' : '') + '</div>' : '';
     return '<article class="card"><div class="img" data-view="' + id + '">' +
       '<img loading="lazy" src="' + esc(cover(p)) + '" alt="' + esc(p.name) + '">' +
@@ -186,10 +261,16 @@ function cartEntries() {
     .filter(e => e.p && e.q > 0);
 }
 function renderCart() {
-  const es = cartEntries();
-  const n = es.reduce((a, e) => a + e.q, 0), total = es.reduce((a, e) => a + e.q * Number(e.p.price), 0);
-  $('#count').textContent = n; $('#total').textContent = money(total);
-  $('#send').disabled = !n;
+  const es = cartEntries(), T = totals(es);
+  $('#count').textContent = T.qty;
+  const rows = [['Gifts', money(T.sub)]];
+  T.ax.forEach(x => rows.push([x.a.name + (x.q > 1 ? ' × ' + x.q : ''), money(x.amt)]));
+  if (T.del && T.del.status === 'ok') rows.push(['Delivery', T.del.free ? 'Free' : money(T.charge)]);
+  else if (T.del && T.del.status === 'unknown') rows.push(['Delivery', 'To be confirmed']);
+  $('#sumBox').innerHTML = es.length ? rows.map(r => '<div class="srow"><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></div>').join('') +
+    '<div class="total"><span>Total</span><span>' + money(T.total) + '</span></div>' : '<div class="total"><span>Total</span><span>₹0</span></div>';
+  document.querySelectorAll('[data-pinstat]').forEach(el => el.textContent = deliveryText(T, T.sub));
+  $('#send').disabled = !T.qty || T.blocked;
   $('#items').innerHTML = es.length ? es.map(e => { const id = esc(e.p.id); return '<div class="line"><img src="' + esc(cover(e.p)) + '" alt="">' +
     '<div><div class="n">' + esc(e.p.name) + '</div><div class="qty"><button data-dec="' + id + '">−</button><span>' + e.q + '</span><button data-inc="' + id + '"' + (e.q >= MU.stockOf(e.p) ? ' disabled title="No more in stock"' : '') + '>+</button></div>' +
     (e.p.personalise ? '<input class="line-note" data-note="' + id + '" maxlength="200" value="' + esc(e.note) + '" placeholder="' + esc(noteLabel(e.p)) + '">' : '') + '</div>' +
@@ -225,18 +306,18 @@ function view(id) {
   $('#mNoteBox').style.display = p.personalise && !out ? '' : 'none';
   $('#mNoteLabel').textContent = '✍ ' + noteLabel(p) + ' (optional)';
   $('#mNote').value = (cart[p.id] && cart[p.id].note) || '';
-  $('#mDateBox').style.display = out ? 'none' : '';
-  $('#mAdd').disabled = out; $('#mOrder').disabled = out;
+  $('#mOpts').style.display = out ? 'none' : '';
+  $('#mAdd').disabled = out;
   $('#mOrder').textContent = out ? 'Sold out' : 'Order on WhatsApp';
+  renderModalSum();
   openEl($('#modal'));
   try { history.replaceState(null, '', '?gift=' + encodeURIComponent(p.id)); } catch (e) {}
 }
 
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-c],[data-add],[data-view],[data-inc],[data-dec],[data-order],[data-thumb]'); if (!t) return;
+  const t = e.target.closest('[data-c],[data-add],[data-view],[data-inc],[data-dec],[data-thumb]'); if (!t) return;
   if (t.dataset.c) { cat = t.dataset.c; renderCats(); renderGrid(); }
   else if (t.dataset.add) { change(t.dataset.add, 1); openEl($('#drawer')); }
-  else if (t.dataset.order) { const p = byId(t.dataset.order); if (p && MU.stockOf(p)) placeOrder([{ p, q: 1, note: '' }]); }
   else if (t.dataset.view) view(t.dataset.view);
   else if (t.dataset.thumb) showPhoto(Number(t.dataset.thumb));
   else if (t.dataset.inc) change(t.dataset.inc, 1);
@@ -255,8 +336,25 @@ $('#mOrder').onclick = () => { if (viewing && MU.stockOf(viewing)) placeOrder([{
 $('#send').onclick = () => placeOrder(cartEntries());
 $('#sort').onchange = e => { sortBy = e.target.value; renderGrid(); };
 $('#budget').onchange = e => { budget = e.target.value; renderGrid(); };
-$('#cDate').onchange = e => onDate(e.target.value);
-$('#mDate').onchange = e => onDate(e.target.value);
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.matches && t.matches('[data-date]')) onDate(t.value);
+  else if (t.dataset && 'addon' in t.dataset) {
+    t.checked ? chosen.add(String(t.dataset.addon)) : chosen.delete(String(t.dataset.addon));
+    document.querySelectorAll('[data-addon="' + t.dataset.addon + '"]').forEach(x => x.checked = t.checked);
+    try { localStorage.setItem('mu_addons', JSON.stringify([...chosen])); } catch (err) {}
+    refreshSummary();
+  }
+});
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset && 'pin' in t.dataset) {
+    pincode = t.value.replace(/\D/g, '').slice(0, 6); t.value = pincode;
+    document.querySelectorAll('[data-pin]').forEach(x => { if (x !== t) x.value = pincode; });
+    try { localStorage.setItem('mu_pin', pincode); } catch (err) {}
+    refreshSummary();
+  }
+});
 $('#mShare').onclick = async () => {
   if (!viewing) return;
   const url = shareUrl(viewing.id), data = { title: viewing.name + ' – ManaUpahar', text: 'Look at this gift: ' + viewing.name + ' (' + money(viewing.price) + ')', url };
@@ -278,6 +376,10 @@ function renderFooter() {
 (async function init() {
   try {
     [products, settings] = await Promise.all([MU.getProducts(), MU.getSettings()]);
+    // Extras and delivery areas need the latest database upgrade; the shop still works without them.
+    [addons, zones] = await Promise.all([MU.addons.list().catch(() => []), MU.zones.list().catch(() => [])]);
+    addons = addons.filter(a => a.active !== false); zones = zones.filter(z => z.active !== false);
+    chosen = new Set([...chosen].filter(id => addons.some(a => String(a.id) === id)));
   } catch (err) {
     console.error(err);
     $('#grid').innerHTML = '<div class="empty">Could not load gifts right now. Please refresh in a moment.</div>';
@@ -285,7 +387,7 @@ function renderFooter() {
   }
   $('#note').textContent = settings.note || '';
   $('#footNote').textContent = settings.note || '';
-  renderCats(); renderGrid(); renderCart(); renderFooter(); syncDates();
+  renderCats(); renderGrid(); renderOptions(); renderCart(); renderFooter();
   const g = new URLSearchParams(location.search).get('gift');
   if (g && byId(g)) view(g);
 })();

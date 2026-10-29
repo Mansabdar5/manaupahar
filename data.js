@@ -3,7 +3,7 @@
   const C = window.MU_CONFIG || {};
   const live = !!(C.SUPABASE_URL && C.SUPABASE_ANON_KEY && window.supabase);
   const sb = live ? window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY) : null;
-  const K = { p: 'mu_demo_products', s: 'mu_demo_settings', a: 'mu_demo_admin', o: 'mu_demo_orders' };
+  const K = { p: 'mu_demo_products', s: 'mu_demo_settings', a: 'mu_demo_admin', o: 'mu_demo_orders', ad: 'mu_demo_addons', z: 'mu_demo_zones' };
 
   const rd = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const wr = (k, v) => {
@@ -30,6 +30,43 @@
   sample[0].personalise = true; sample[0].personalise_label = 'Name or message to print on the frame';
   sample[1].featured = true; sample[2].featured = true; sample[5].created_at = new Date().toISOString();
   sample[1].personalise = true; sample[1].personalise_label = 'Name and age for the card';
+
+  const sampleAddons = [
+    { id: 'a1', name: 'Gift wrapping', price: 49, per_item: true, active: true },
+    { id: 'a2', name: 'Greeting card (write your message on WhatsApp)', price: 29, per_item: false, active: true },
+    { id: 'a3', name: 'Extra chocolates', price: 99, per_item: false, active: true }
+  ];
+  const sampleZones = [
+    { id: 'z1', label: 'Local delivery', pincodes: '500', charge: 60, free_above: 1500, active: true },
+    { id: 'z2', label: 'Nearby towns', pincodes: '501, 502, 503, 504, 505', charge: 120, free_above: null, active: true }
+  ];
+
+  // Small list manager used for add-ons and delivery areas
+  const table = (name, key, sampleRows, cols) => ({
+    async list() {
+      if (!live) return rd(key, sampleRows);
+      const { data, error } = await sb.from(name).select('*').order('created_at', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    async save(r) {
+      const row = {};
+      cols.forEach(k => { if (r[k] !== undefined) row[k] = r[k]; });
+      if (!live) {
+        const l = rd(key, sampleRows).slice();
+        if (r.id) { const i = l.findIndex(x => x.id === r.id); if (i >= 0) l[i] = Object.assign({}, l[i], row); }
+        else l.push(Object.assign({ id: 'x' + Date.now() }, row));
+        wr(key, l); return;
+      }
+      const { error } = await (r.id ? sb.from(name).update(row).eq('id', r.id) : sb.from(name).insert(row));
+      if (error) throw error;
+    },
+    async remove(id) {
+      if (!live) { wr(key, rd(key, sampleRows).filter(x => x.id !== id)); return; }
+      const { error } = await sb.from(name).delete().eq('id', id);
+      if (error) throw error;
+    }
+  });
 
   const defaults = { whatsapp: C.DEFAULT_WHATSAPP || '919999999999', note: 'Delivery and payment details will be confirmed with you on WhatsApp.' };
 
@@ -86,7 +123,7 @@
       return o;
     },
     async saveSettings(obj) {
-      if (!live) { wr(K.s, obj); return; }
+      if (!live) { wr(K.s, Object.assign({}, rd(K.s, {}), obj)); return; }
       const rows = Object.keys(obj).map(k => ({ key: k, value: obj[k] }));
       const { error } = await sb.from('settings').upsert(rows);
       if (error) throw error;
@@ -118,6 +155,9 @@
       if (error) throw error;
       return sb.storage.from('gifts').getPublicUrl(name).data.publicUrl;
     },
+
+    addons: table('addons', K.ad, sampleAddons, ['name', 'price', 'per_item', 'active']),
+    zones: table('delivery_zones', K.z, sampleZones, ['label', 'pincodes', 'charge', 'free_above', 'active']),
 
     // ---- Orders ----
     async saveOrder(o) {
