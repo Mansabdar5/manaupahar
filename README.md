@@ -39,6 +39,7 @@ New installs skip this, because `setup.sql` already includes everything.
 Already live? In Supabase → **SQL Editor** → **New query**, paste and **Run** these files **one at a time, once each**:
 1. `upgrade-stock.sql` (only if you have not run it before)
 2. `upgrade-v3.sql` (multiple photos, personalisation, orders)
+3. `upgrade-v4.sql` (best sellers, delivery dates)
 
 Run the SQL **before** uploading the new files to GitHub. Then upload the changed files and Vercel republishes by itself. Keep your own `config.js`.
 
@@ -48,11 +49,19 @@ Run the SQL **before** uploading the new files to GitHub. Then upload the change
    Tick **Customers can personalise** to show a box where the customer types a name or message (you choose the question, for example "Name to print on the frame"). It is added to their WhatsApp order.
 3. **Stock:** every gift has a stock number. Use **−** when you sell one and **+** when you restock, or type the exact number under **Edit**. At **0** the shop shows **SOLD OUT** on the photo and the order buttons are disabled. With 3 or fewer left, customers see "Only N left", and they cannot add more to the cart than you have.
 4. **Orders tab:** when a customer taps the WhatsApp button, the order appears here as **New** with a reference such as `MU-AB12C` (the same reference is in their WhatsApp message). After you agree the order on WhatsApp, press **Confirm**: the stock goes down automatically. Then **Mark delivered** when done. **Cancel** puts the stock back.
-5. **Edit / Delete** gifts from the list below.
-6. **Settings:** change the WhatsApp number that receives orders.
+5. **Best sellers:** tick "Show as Best seller" on a gift to give it a ⭐ badge and show it first in the shop. Gifts added in the last 14 days get a "New" badge automatically.
+6. **Summary tab:** new orders waiting, orders and sales this month, all-time sales, your top 5 sellers, and gifts running low. It counts only orders you have confirmed.
+7. **Edit / Delete** gifts from the list below.
+8. **Settings:** WhatsApp number, how many days you need to prepare an order (customers cannot pick an earlier delivery date), and the About us, Delivery and returns and Instagram details shown in the shop footer.
 
 ## How customers order
 Customers browse by category, tap a gift to see all its photos, type their personalisation if offered, tap **Order now** (one gift) or **Add to cart** for several, then **Send order on WhatsApp**. WhatsApp opens with the gift list and total already typed; they add name, address and delivery date and send. You confirm payment and delivery in the chat.
+
+## Extras customers get
+- A green **Chat with us** button on every page for questions that are not orders.
+- **Sort** (recommended, newest, price) and **budget** filters. Sold-out gifts always go to the end.
+- A **Share** button on each gift. It sends a link like `yoursite.com/?gift=...` that opens that gift directly. The link preview shows the shop name, not the gift photo.
+- An optional **delivery date** in the cart and gift pages. It is added to the WhatsApp message and shown on the order in admin.
 
 ## Changing things later
 - Updated a file on GitHub (for example `config.js` or `logo.png`)? Vercel republishes automatically.

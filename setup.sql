@@ -12,6 +12,7 @@ create table if not exists public.products (
   images text[] not null default '{}',
   personalise boolean not null default false,
   personalise_label text,
+  featured boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -61,6 +62,7 @@ create table if not exists public.orders (
   items jsonb not null,
   total numeric not null default 0,
   status text not null default 'new' check (status in ('new','confirmed','delivered','cancelled')),
+  delivery_date text,
   created_at timestamptz not null default now()
 );
 alter table public.orders enable row level security;
@@ -72,7 +74,8 @@ grant select, insert, update, delete on public.orders to authenticated;
 drop policy if exists "customers place orders" on public.orders;
 create policy "customers place orders" on public.orders for insert to anon, authenticated
   with check (status = 'new' and jsonb_typeof(items) = 'array'
-              and jsonb_array_length(items) between 1 and 50 and length(ref) <= 20);
+              and jsonb_array_length(items) between 1 and 50 and length(ref) <= 20
+              and pg_column_size(items) < 20000 and length(coalesce(delivery_date, '')) <= 20);
 
 -- Only the logged-in admin can see and manage orders.
 drop policy if exists "admin manages orders" on public.orders;

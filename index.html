@@ -25,13 +25,27 @@
 
 <main class="container">
   <div class="cats" id="cats"></div>
+  <div class="toolbar">
+    <select id="sort" aria-label="Sort gifts">
+      <option value="rec">Recommended</option><option value="new">Newest first</option>
+      <option value="low">Price: low to high</option><option value="high">Price: high to low</option>
+    </select>
+    <select id="budget" aria-label="Budget">
+      <option value="all">Any budget</option><option value="0-500">Under ₹500</option><option value="500-1000">₹500 – ₹1,000</option>
+      <option value="1000-2000">₹1,000 – ₹2,000</option><option value="2000-">Above ₹2,000</option>
+    </select>
+  </div>
   <div class="grid" id="grid"><div class="empty">Loading gifts…</div></div>
 </main>
 
 <footer class="foot">
+  <div class="container" id="footGrid"></div>
   <strong>ManaUpahar</strong> – Where Every Gift Carries a Memory<br>
   <span id="footNote"></span>
 </footer>
+
+<a class="wa-float" id="waFloat" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">💬 <span>Chat with us</span></a>
+<div class="toast" id="toast"></div>
 
 <div class="overlay" id="ov"></div>
 
@@ -39,13 +53,17 @@
   <button class="x" id="closeModal" aria-label="Close">×</button>
   <div class="gallery"><img id="mImg" alt=""><div class="thumbs" id="thumbs"></div></div>
   <div class="info">
-    <span class="note" id="mCat"></span>
+    <div class="mtop"><span class="note" id="mCat"></span><button class="share" id="mShare" type="button">🔗 Share</button></div>
     <h2 id="mName" style="margin:0;color:var(--navy)"></h2>
     <div class="price" id="mPrice"></div>
     <p id="mDesc" style="margin:0;color:var(--muted)"></p>
     <div class="note-field" id="mNoteBox" style="display:none">
       <label for="mNote" id="mNoteLabel">Personalise</label>
       <textarea id="mNote" maxlength="200" placeholder="Type here (optional)"></textarea>
+    </div>
+    <div class="note-field" id="mDateBox">
+      <label for="mDate">📅 Delivery date (optional)</label>
+      <input type="date" id="mDate">
     </div>
     <div class="actions" style="margin-top:auto">
       <button class="btn btn-o" id="mAdd">Add to cart</button>
@@ -58,6 +76,7 @@
   <header>Your cart <button class="x" id="closeCart" aria-label="Close">×</button></header>
   <div class="items" id="items"></div>
   <footer>
+    <div><label for="cDate" style="margin:0 0 4px">📅 Delivery date (optional)</label><input type="date" id="cDate"></div>
     <div class="total"><span>Total</span><span id="total">₹0</span></div>
     <button class="btn btn-g" id="send" style="padding:14px">Send order on WhatsApp</button>
     <div class="note" id="note"></div>
@@ -70,7 +89,8 @@
 <script>
 const $ = s => document.querySelector(s);
 const esc = MU.esc, money = MU.money;
-let products = [], settings = {}, cat = 'All', term = '';
+let products = [], settings = {}, cat = 'All', term = '', sortBy = 'rec', budget = 'all', deliveryDate = '';
+try { deliveryDate = localStorage.getItem('mu_date') || ''; } catch (e) {}
 let cart = {};
 try {
   const raw = JSON.parse(localStorage.getItem('mu_cart') || '{}');
@@ -86,6 +106,24 @@ const cover = p => MU.imagesOf(p)[0] || '';
 $('#brand').innerHTML = MU.logoHTML();
 
 function waLink(text) { return 'https://wa.me/' + String(settings.whatsapp || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(text); }
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.className = 'toast show';
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.className = 'toast', 2600);
+}
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+function leadDays() { const n = Number(settings.lead_days); return settings.lead_days !== undefined && settings.lead_days !== '' && !isNaN(n) ? Math.max(0, n) : 1; }
+function dateFrom(days) { const d = new Date(); d.setDate(d.getDate() + days); return ymd(d); }
+function fmtDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); }
+function syncDates() {
+  if (deliveryDate && deliveryDate < dateFrom(leadDays())) deliveryDate = '';
+  ['#cDate', '#mDate'].forEach(s => { const el = $(s); el.min = dateFrom(leadDays()); el.max = dateFrom(180); el.value = deliveryDate; });
+}
+function onDate(v) {
+  if (v && v < dateFrom(leadDays())) { toast('We need at least ' + leadDays() + ' day' + (leadDays() === 1 ? '' : 's') + ' to prepare. Please pick a later date.'); v = ''; }
+  deliveryDate = v; try { localStorage.setItem('mu_date', v); } catch (e) {}
+  syncDates();
+}
 function noteLabel(p) { return p.personalise_label || 'Personalisation'; }
 
 // Builds the WhatsApp message, opens WhatsApp, and saves the order so the shop owner can track it.
@@ -93,7 +131,8 @@ function placeOrder(es) {
   if (!es.length) return;
   const total = es.reduce((a, e) => a + e.q * Number(e.p.price), 0);
   const items = es.map(e => ({ id: e.p.id, name: e.p.name, price: Number(e.p.price), qty: e.q, note: (e.note || '').trim() }));
-  const sig = JSON.stringify(items);
+  const date = deliveryDate || '';
+  const sig = JSON.stringify([items, date]);
   let ref = MU.genRef(), save = true;
   try { // pressing the button again for the same basket within 10 minutes reuses the order, so you do not get duplicates
     const last = JSON.parse(sessionStorage.getItem('mu_last') || 'null');
@@ -102,20 +141,29 @@ function placeOrder(es) {
   } catch (e) {}
   const lines = items.map((it, i) => (i + 1) + '. ' + it.name + ' × ' + it.qty + ' – ' + money(it.qty * it.price) +
     (it.note ? '\n   ✍ ' + noteLabel(byId(it.id) || {}) + ': ' + it.note : ''));
-  const msg = 'Hello ManaUpahar! 🎁\nOrder ref: ' + ref + '\n\n' + lines.join('\n') + '\n\nTotal: ' + money(total) + '\n\nMy name:\nDelivery address:\nDelivery date:';
+  const msg = 'Hello ManaUpahar! 🎁\nOrder ref: ' + ref + '\n\n' + lines.join('\n') + '\n\nTotal: ' + money(total) + '\n\nMy name:\nDelivery address:\nDelivery date:' + (date ? ' ' + fmtDate(date) : '');
   window.open(waLink(msg), '_blank', 'noopener');
-  if (save) MU.saveOrder({ ref, items, total }).catch(err => console.error('Order not saved', err));
+  if (save) MU.saveOrder({ ref, items, total, delivery_date: date || null }).catch(err => console.error('Order not saved', err));
 }
 
 function renderCats() {
   const list = ['All', ...new Set(products.map(p => p.category).filter(Boolean))];
   $('#cats').innerHTML = list.map(c => '<button class="chip ' + (c === cat ? 'on' : '') + '" data-c="' + esc(c) + '">' + esc(c) + '</button>').join('');
 }
+const isNew = p => p.created_at && (Date.now() - new Date(p.created_at).getTime()) < 14 * 864e5;
+function inBudget(p) {
+  if (budget === 'all') return true;
+  const [lo, hi] = budget.split('-'), v = Number(p.price) || 0;
+  return v >= Number(lo || 0) && (hi === '' || v < Number(hi));
+}
 function renderGrid() {
   const t = term.trim().toLowerCase();
-  const list = products.filter(p => (cat === 'All' || p.category === cat) &&
-    (!t || (p.name + ' ' + (p.description || '') + ' ' + p.category).toLowerCase().includes(t)));
-  if (!list.length) { $('#grid').innerHTML = '<div class="empty">No gifts found here yet. Try another category.</div>'; return; }
+  const price = p => Number(p.price) || 0, newest = (a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''));
+  const cmp = { rec: (a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0), new: newest, low: (a, b) => price(a) - price(b), high: (a, b) => price(b) - price(a) }[sortBy];
+  const list = products.map((p, i) => [p, i])
+    .filter(([p]) => (cat === 'All' || p.category === cat) && inBudget(p) && (!t || (p.name + ' ' + (p.description || '') + ' ' + p.category).toLowerCase().includes(t)))
+    .sort((x, y) => ((MU.stockOf(x[0]) === 0) - (MU.stockOf(y[0]) === 0)) || cmp(x[0], y[0]) || x[1] - y[1]).map(x => x[0]);
+  if (!list.length) { $('#grid').innerHTML = '<div class="empty">No gifts found here yet. Try another category or budget.</div>'; return; }
   $('#grid').innerHTML = list.map(p => {
     const left = MU.stockOf(p), out = left === 0, id = esc(p.id);
     const buttons = out
@@ -123,9 +171,10 @@ function renderGrid() {
       : p.personalise
         ? '<button class="btn btn-g" data-view="' + id + '" style="grid-column:1/-1">Personalise &amp; order</button>'
         : '<button class="btn btn-o" data-add="' + id + '">Add to cart</button><button class="btn btn-g" data-order="' + id + '">Order now</button>';
+    const badges = (!out && (p.featured || isNew(p))) ? '<div class="badges">' + (p.featured ? '<span class="b-best">⭐ Best seller</span>' : '') + (isNew(p) ? '<span class="b-new">New</span>' : '') + '</div>' : '';
     return '<article class="card"><div class="img" data-view="' + id + '">' +
       '<img loading="lazy" src="' + esc(cover(p)) + '" alt="' + esc(p.name) + '">' +
-      '<span class="tag">' + esc(p.category) + '</span>' +
+      '<span class="tag">' + esc(p.category) + '</span>' + badges +
       (out ? '<div class="sold">SOLD OUT</div>' : (left <= 3 ? '<span class="low-tag">Only ' + left + ' left</span>' : '')) + '</div>' +
       '<div class="body"><h3>' + esc(p.name) + '</h3><div class="price">' + money(p.price) + '</div>' +
       (p.personalise && !out ? '<div class="pers">✍ Can be personalised</div>' : '') +
@@ -154,7 +203,11 @@ function change(id, d, note) {
 }
 
 function openEl(el) { $('#ov').classList.add('open'); el.classList.add('open'); }
-function closeAll() { ['#ov', '#modal', '#drawer'].forEach(s => $(s).classList.remove('open')); }
+function closeAll() {
+  ['#ov', '#modal', '#drawer'].forEach(s => $(s).classList.remove('open'));
+  try { if (location.search) history.replaceState(null, '', location.pathname); } catch (e) {}
+}
+function shareUrl(id) { return location.href.split('#')[0].split('?')[0] + '?gift=' + encodeURIComponent(id); }
 let viewing = null;
 function showPhoto(i) {
   const imgs = MU.imagesOf(viewing);
@@ -172,9 +225,11 @@ function view(id) {
   $('#mNoteBox').style.display = p.personalise && !out ? '' : 'none';
   $('#mNoteLabel').textContent = '✍ ' + noteLabel(p) + ' (optional)';
   $('#mNote').value = (cart[p.id] && cart[p.id].note) || '';
+  $('#mDateBox').style.display = out ? 'none' : '';
   $('#mAdd').disabled = out; $('#mOrder').disabled = out;
   $('#mOrder').textContent = out ? 'Sold out' : 'Order on WhatsApp';
   openEl($('#modal'));
+  try { history.replaceState(null, '', '?gift=' + encodeURIComponent(p.id)); } catch (e) {}
 }
 
 document.addEventListener('click', e => {
@@ -198,6 +253,27 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll(); 
 $('#mAdd').onclick = () => { if (viewing) { change(viewing.id, 1, $('#mNote').value.trim()); closeAll(); openEl($('#drawer')); } };
 $('#mOrder').onclick = () => { if (viewing && MU.stockOf(viewing)) placeOrder([{ p: viewing, q: 1, note: $('#mNote').value.trim() }]); };
 $('#send').onclick = () => placeOrder(cartEntries());
+$('#sort').onchange = e => { sortBy = e.target.value; renderGrid(); };
+$('#budget').onchange = e => { budget = e.target.value; renderGrid(); };
+$('#cDate').onchange = e => onDate(e.target.value);
+$('#mDate').onchange = e => onDate(e.target.value);
+$('#mShare').onclick = async () => {
+  if (!viewing) return;
+  const url = shareUrl(viewing.id), data = { title: viewing.name + ' – ManaUpahar', text: 'Look at this gift: ' + viewing.name + ' (' + money(viewing.price) + ')', url };
+  try { if (navigator.share) { await navigator.share(data); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (e) { window.prompt('Copy this link', url); }
+};
+
+function renderFooter() {
+  const cols = [];
+  if (settings.about) cols.push('<div><h4>About us</h4><p>' + esc(settings.about) + '</p></div>');
+  if (settings.delivery) cols.push('<div><h4>Delivery &amp; returns</h4><p>' + esc(settings.delivery) + '</p></div>');
+  const links = ['<a href="' + esc(waLink('Hello ManaUpahar! I have a question about your gifts.')) + '" target="_blank" rel="noopener">Chat on WhatsApp</a>'];
+  if (/^https?:\/\//i.test(settings.instagram || '')) links.push('<a href="' + esc(settings.instagram) + '" target="_blank" rel="noopener">Instagram</a>');
+  cols.push('<div><h4>Contact</h4><p>' + links.join('\n') + '</p></div>');
+  $('#footGrid').innerHTML = cols.join('');
+  $('#waFloat').href = waLink('Hello ManaUpahar! I have a question about your gifts.');
+}
 
 (async function init() {
   try {
@@ -209,7 +285,9 @@ $('#send').onclick = () => placeOrder(cartEntries());
   }
   $('#note').textContent = settings.note || '';
   $('#footNote').textContent = settings.note || '';
-  renderCats(); renderGrid(); renderCart();
+  renderCats(); renderGrid(); renderCart(); renderFooter(); syncDates();
+  const g = new URLSearchParams(location.search).get('gift');
+  if (g && byId(g)) view(g);
 })();
 </script>
 </body>

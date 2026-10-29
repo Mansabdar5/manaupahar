@@ -36,6 +36,7 @@
     <div class="tabs">
       <button class="chip on" data-tab="gifts">Gifts</button>
       <button class="chip" data-tab="orders">Orders<span class="cnt" id="newCnt" style="display:none">0</span></button>
+      <button class="chip" data-tab="summary">Summary</button>
       <button class="chip" data-tab="settings">Settings</button>
     </div>
 
@@ -60,7 +61,8 @@
           <input type="file" id="file" accept="image/*" multiple>
           <div class="hint">Add one or more photos. The first one is the cover shown on the shop page. Large photos are shrunk automatically.</div>
           <div class="photos" id="photos"></div>
-          <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin-top:16px"><input type="checkbox" id="pers"> Customers can personalise this gift (name, message, etc.)</label>
+          <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin-top:16px"><input type="checkbox" id="featured"> ⭐ Show as “Best seller” (appears first in the shop)</label>
+          <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin-top:10px"><input type="checkbox" id="pers"> Customers can personalise this gift (name, message, etc.)</label>
           <div id="persBox" style="display:none">
             <label for="persLabel">What should the customer type?</label>
             <input type="text" id="persLabel" maxlength="80" placeholder="e.g. Name to print on the frame">
@@ -86,6 +88,12 @@
       </div>
     </div>
 
+    <div id="tab-summary" style="display:none">
+      <div class="stats" id="stats"></div>
+      <div class="panel"><h2>Best sellers</h2><div class="hint" style="margin:-6px 0 8px">From confirmed and delivered orders.</div><div id="best"></div></div>
+      <div class="panel"><h2>Running low or sold out</h2><div id="low"></div></div>
+    </div>
+
     <div id="tab-settings" style="display:none">
       <div class="panel">
         <h2>Shop settings</h2>
@@ -95,6 +103,15 @@
           <div class="hint">Country code first, digits only, no + or spaces. India example: 919876543210</div>
           <label for="note">Note shown to customers</label>
           <input type="text" id="note" maxlength="200">
+          <label for="lead">Days you need to prepare an order</label>
+          <input type="number" id="lead" min="0" max="30" step="1" value="1">
+          <div class="hint">Customers cannot choose a delivery date earlier than this. 1 means from tomorrow.</div>
+          <label for="about">About us (shown in the shop footer)</label>
+          <textarea id="about" rows="3" maxlength="400" placeholder="Who you are and what makes your gifts special"></textarea>
+          <label for="delivery">Delivery and returns (shown in the shop footer)</label>
+          <textarea id="delivery" rows="3" maxlength="400" placeholder="Areas you deliver to, delivery charges, how long it takes, return policy"></textarea>
+          <label for="insta">Instagram link (optional)</label>
+          <input type="text" id="insta" maxlength="200" placeholder="https://instagram.com/yourshop">
           <button class="btn btn-p" style="margin-top:18px;padding:12px 22px">Save settings</button>
         </form>
       </div>
@@ -141,8 +158,8 @@ $('#logout').onclick = () => guard(async () => { await MU.logout(); await route(
 
 document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
   document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b));
-  ['gifts', 'orders', 'settings'].forEach(t => $('#tab-' + t).style.display = b.dataset.tab === t ? '' : 'none');
-  if (b.dataset.tab === 'orders') guard(loadOrders);
+  ['gifts', 'orders', 'summary', 'settings'].forEach(t => $('#tab-' + t).style.display = b.dataset.tab === t ? '' : 'none');
+  if (b.dataset.tab === 'orders' || b.dataset.tab === 'summary') guard(async () => { await loadGifts(); await loadOrders(); });
 });
 
 /* ---------- Gifts ---------- */
@@ -156,17 +173,20 @@ async function loadGifts() {
     const pill = n === 0 ? '<span class="pill off">Sold out</span>' : n <= 3 ? '<span class="pill low">Low stock</span>' : '<span class="pill">In stock</span>';
     return '<div class="item"><img src="' + esc(img[0] || '') + '" alt="">' +
       '<div><div class="t">' + esc(p.name) + pill + '</div>' +
-      '<div class="s">' + esc(p.category) + ' · ' + money(p.price) + ' · ' + (img.length || 0) + ' photo' + (img.length === 1 ? '' : 's') + (p.personalise ? ' · ✍ personalised' : '') + '</div></div>' +
+      '<div class="s">' + esc(p.category) + ' · ' + money(p.price) + ' · ' + (img.length || 0) + ' photo' + (img.length === 1 ? '' : 's') + (p.personalise ? ' · ✍ personalised' : '') + (p.featured ? ' · ⭐ best seller' : '') + '</div></div>' +
       '<div class="b"><div class="stepper"><button class="btn btn-s" data-adj="-1" data-id="' + id + '" aria-label="Reduce stock by 1"' + (n === 0 ? ' disabled' : '') + '>−</button>' +
       '<span class="stk" title="Stock">' + n + '</span>' +
       '<button class="btn btn-s" data-adj="1" data-id="' + id + '" aria-label="Increase stock by 1">+</button></div>' +
       '<button class="btn btn-s" data-edit="' + id + '">Edit</button>' +
       '<button class="btn btn-d" data-del="' + id + '">Delete</button></div></div>';
   }).join('') : '<div class="note">No gifts yet. Add your first one above.</div>';
+  renderSummary();
 }
 async function loadSettings() {
   const s = await MU.getSettings();
   $('#wa').value = s.whatsapp || ''; $('#note').value = s.note || '';
+  $('#lead').value = s.lead_days !== undefined && s.lead_days !== '' ? s.lead_days : 1;
+  $('#about').value = s.about || ''; $('#delivery').value = s.delivery || ''; $('#insta').value = s.instagram || '';
 }
 
 function renderPhotos() {
@@ -192,7 +212,7 @@ $('#pers').onchange = () => { $('#persBox').style.display = $('#pers').checked ?
 function resetForm() {
   $('#form').reset(); $('#pid').value = ''; photos = []; renderPhotos();
   $('#formTitle').textContent = 'Add a gift'; $('#cancel').style.display = 'none';
-  $('#stockIn').value = 1; $('#persBox').style.display = 'none';
+  $('#stockIn').value = 1; $('#persBox').style.display = 'none'; $('#featured').checked = false;
 }
 $('#cancel').onclick = resetForm;
 
@@ -211,6 +231,7 @@ $('#form').onsubmit = e => {
         price: Number($('#price').value), description: $('#desc').value.trim(),
         image_url: urls[0] || null, images: urls,
         stock: Math.max(0, Math.floor(Number($('#stockIn').value) || 0)),
+        featured: $('#featured').checked,
         personalise: pers, personalise_label: pers ? ($('#persLabel').value.trim() || 'Name or message') : null
       });
       toast($('#pid').value ? 'Gift updated' : 'Gift added');
@@ -227,7 +248,7 @@ $('#list').onclick = e => {
     $('#pid').value = p.id; $('#name').value = p.name; $('#price').value = p.price;
     $('#category').value = p.category; $('#desc').value = p.description || '';
     $('#stockIn').value = MU.stockOf(p);
-    $('#pers').checked = !!p.personalise; $('#persLabel').value = p.personalise_label || '';
+    $('#featured').checked = !!p.featured; $('#pers').checked = !!p.personalise; $('#persLabel').value = p.personalise_label || '';
     $('#persBox').style.display = p.personalise ? '' : 'none';
     photos = MU.imagesOf(p).map(u => ({ url: u })); renderPhotos();
     $('#formTitle').textContent = 'Edit gift'; $('#cancel').style.display = '';
@@ -252,7 +273,7 @@ async function loadOrders() {
   orders = await MU.getOrders();
   const n = orders.filter(o => o.status === 'new').length;
   $('#newCnt').textContent = n; $('#newCnt').style.display = n ? '' : 'none';
-  renderOrders();
+  renderOrders(); renderSummary();
 }
 function renderOrders() {
   const counts = {}; orders.forEach(o => counts[o.status] = (counts[o.status] || 0) + 1);
@@ -272,6 +293,7 @@ function renderOrders() {
       cancelled: '<button class="btn btn-s" data-os="new" data-id="' + id + '">Move back to New</button>'
     }[o.status] || '';
     return '<div class="order"><div class="oh"><strong>' + esc(o.ref) + '</strong><span class="pill ' + cls + '" style="margin:0">' + label + '</span><span class="when">' + when + '</span></div>' +
+      (o.delivery_date ? '<div class="s" style="font-weight:700;color:var(--navy)">📅 Deliver on ' + esc(o.delivery_date.split('-').reverse().join('/')) + '</div>' : '') +
       '<ul>' + items + '</ul><div class="ot">Total ' + money(o.total) + '</div><div class="b">' + btns + '</div></div>';
   }).join('') : '<div class="note">No ' + (ofilter === 'all' ? '' : ofilter + ' ') + 'orders yet.</div>';
 }
@@ -292,12 +314,43 @@ $('#olist').onclick = e => {
   });
 };
 
+/* ---------- Summary ---------- */
+function renderSummary() {
+  const sold = orders.filter(o => o.status === 'confirmed' || o.status === 'delivered');
+  const now = new Date(), sameMonth = o => { const d = new Date(o.created_at); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); };
+  const sum = list => list.reduce((a, o) => a + (Number(o.total) || 0), 0);
+  const tiles = [
+    [orders.filter(o => o.status === 'new').length, 'New orders waiting'],
+    [orders.filter(o => sameMonth(o) && o.status !== 'cancelled').length, 'Orders this month'],
+    [money(sum(sold.filter(sameMonth))), 'Sales this month'],
+    [money(sum(sold)), 'Sales, all time']
+  ];
+  $('#stats').innerHTML = tiles.map(t => '<div class="stat"><b>' + esc(t[0]) + '</b><span>' + t[1] + '</span></div>').join('');
+  const tally = {};
+  sold.forEach(o => (o.items || []).forEach(it => {
+    const t = tally[it.name] = tally[it.name] || { qty: 0, rev: 0 };
+    t.qty += Number(it.qty) || 0; t.rev += (Number(it.qty) || 0) * (Number(it.price) || 0);
+  }));
+  const top = Object.entries(tally).sort((x, y) => y[1].qty - x[1].qty).slice(0, 5), max = top.length ? top[0][1].qty : 1;
+  $('#best').innerHTML = top.length ? top.map(([n, t]) => '<div class="brow"><span>' + esc(n) + '</span><div class="bar"><i style="width:' + Math.round(t.qty / max * 100) + '%"></i></div><strong>' + t.qty + ' sold · ' + money(t.rev) + '</strong></div>').join('')
+    : '<div class="note">No confirmed orders yet. Sales will show here once you confirm your first order.</div>';
+  const low = products.filter(p => MU.stockOf(p) <= 3).sort((x, y) => MU.stockOf(x) - MU.stockOf(y));
+  $('#low').innerHTML = low.length ? low.map(p => '<div class="brow"><span>' + esc(p.name) + '</span><span></span><strong style="color:' + (MU.stockOf(p) === 0 ? '#b91c1c' : '#b45309') + '">' + (MU.stockOf(p) === 0 ? 'Sold out' : MU.stockOf(p) + ' left') + '</strong></div>').join('')
+    : '<div class="note">Everything is well stocked.</div>';
+}
+
 $('#sform').onsubmit = e => {
   e.preventDefault();
   guard(async () => {
     const wa = $('#wa').value.replace(/\D/g, '');
     if (wa.length < 10) throw new Error('Please enter the full WhatsApp number with country code.');
-    await MU.saveSettings({ whatsapp: wa, note: $('#note').value.trim() });
+    const insta = $('#insta').value.trim();
+    if (insta && !/^https?:\/\//i.test(insta)) throw new Error('The Instagram link must start with https://');
+    await MU.saveSettings({
+      whatsapp: wa, note: $('#note').value.trim(),
+      lead_days: String(Math.min(30, Math.max(0, Math.floor(Number($('#lead').value) || 0)))),
+      about: $('#about').value.trim(), delivery: $('#delivery').value.trim(), instagram: insta
+    });
     $('#wa').value = wa; toast('Settings saved');
   });
 };
