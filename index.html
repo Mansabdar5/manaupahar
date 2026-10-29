@@ -87,7 +87,7 @@
 <script>
 const $ = s => document.querySelector(s);
 const esc = MU.esc, money = MU.money;
-let addons = [], zones = [], chosen = new Set(), pincode = '';
+let addons = [], zones = [], chosen = new Set(), pincode = '', sent = null;
 try { chosen = new Set(JSON.parse(localStorage.getItem('mu_addons') || '[]').map(String)); pincode = localStorage.getItem('mu_pin') || ''; } catch (e) {}
 let products = [], settings = {}, cat = 'All', term = '', sortBy = 'rec', budget = 'all', deliveryDate = '';
 try { deliveryDate = localStorage.getItem('mu_date') || ''; } catch (e) {}
@@ -192,7 +192,7 @@ function renderModalSum() {
 }
 
 // Builds the WhatsApp message, opens WhatsApp, and saves the order so the shop owner can track it.
-function placeOrder(es) {
+function placeOrder(es, fromCart) {
   if (!es.length) return;
   const T = totals(es);
   if (T.blocked) { toast(deliveryText(T, T.sub)); return; }
@@ -201,13 +201,7 @@ function placeOrder(es) {
   if (T.del && T.del.status === 'ok') items.push({ id: 'delivery', kind: 'delivery', name: 'Delivery – ' + T.del.z.label + ' (' + pincode + ')' + (T.del.free ? ' free' : ''), price: T.charge, qty: 1 });
   else if (T.del && T.del.status === 'unknown') items.push({ id: 'delivery', kind: 'delivery', name: 'Delivery – charge to be confirmed (' + pincode + ')', price: 0, qty: 1 });
   const total = T.total, date = deliveryDate || '';
-  const sig = JSON.stringify([items, date]);
-  let ref = MU.genRef(), save = true;
-  try { // pressing the button again for the same basket within 10 minutes reuses the order, so you do not get duplicates
-    const last = JSON.parse(sessionStorage.getItem('mu_last') || 'null');
-    if (last && last.sig === sig && Date.now() - last.t < 600000) { ref = last.ref; save = false; }
-    else sessionStorage.setItem('mu_last', JSON.stringify({ sig, ref, t: Date.now() }));
-  } catch (e) {}
+  const ref = MU.genRef();
   const lines = [];
   es.forEach((e, i) => {
     lines.push((i + 1) + '. ' + e.p.name + ' × ' + e.q + ' – ' + money(e.q * Number(e.p.price)));
@@ -217,8 +211,18 @@ function placeOrder(es) {
   if (T.del && T.del.status === 'ok') lines.push('🚚 Delivery to ' + T.del.z.label + ' (' + pincode + '): ' + (T.del.free ? 'free' : money(T.charge)));
   else if (T.del && T.del.status === 'unknown') lines.push('🚚 Delivery to ' + pincode + ': charge to be confirmed');
   const msg = 'Hello ManaUpahar! 🎁\nOrder ref: ' + ref + '\n\n' + lines.join('\n') + '\n\nTotal: ' + money(total) + '\n\nMy name:\nDelivery address:\nDelivery date:' + (date ? ' ' + fmtDate(date) : '');
-  window.open(waLink(msg), '_blank', 'noopener');
-  if (save) MU.saveOrder({ ref, items, total, delivery_date: date || null }).catch(err => console.error('Order not saved', err));
+  const waUrl = waLink(msg);
+  window.open(waUrl, '_blank', 'noopener');
+  MU.saveOrder({ ref, items, total, delivery_date: date || null }).catch(err => console.error('Order not saved', err));
+  resetAfterOrder(ref, waUrl, fromCart);
+}
+// Start fresh once an order has been sent. The pincode is kept because most customers reuse it.
+function resetAfterOrder(ref, url, fromCart) {
+  sent = { ref, url };
+  if (fromCart) { cart = {}; saveCart(); }
+  chosen.clear(); deliveryDate = '';
+  try { localStorage.setItem('mu_addons', '[]'); localStorage.setItem('mu_date', ''); } catch (e) {}
+  closeAll(); renderOptions(); renderCart(); openEl($('#drawer'));
 }
 
 function renderCats() {
@@ -271,13 +275,19 @@ function renderCart() {
     '<div class="total"><span>Total</span><span>' + money(T.total) + '</span></div>' : '<div class="total"><span>Total</span><span>₹0</span></div>';
   document.querySelectorAll('[data-pinstat]').forEach(el => el.textContent = deliveryText(T, T.sub));
   $('#send').disabled = !T.qty || T.blocked;
-  $('#items').innerHTML = es.length ? es.map(e => { const id = esc(e.p.id); return '<div class="line"><img src="' + esc(cover(e.p)) + '" alt="">' +
+  const sentHtml = sent ? '<div class="sent"><div class="tick">✅</div><h3>Your order is ready on WhatsApp</h3>' +
+    '<p>Order reference <b>' + esc(sent.ref) + '</b>.<br>Please press <b>Send</b> in WhatsApp so we receive it. We will confirm delivery and payment there.</p>' +
+    '<a class="btn btn-g" href="' + esc(sent.url) + '" target="_blank" rel="noopener">Open WhatsApp again</a>' +
+    '<button class="btn btn-o" type="button" data-keep>Continue shopping</button></div>' : '';
+  $('#items').innerHTML = sentHtml + (es.length ? es.map(e => { const id = esc(e.p.id); return '<div class="line"><img src="' + esc(cover(e.p)) + '" alt="">' +
     '<div><div class="n">' + esc(e.p.name) + '</div><div class="qty"><button data-dec="' + id + '">−</button><span>' + e.q + '</span><button data-inc="' + id + '"' + (e.q >= MU.stockOf(e.p) ? ' disabled title="No more in stock"' : '') + '>+</button></div>' +
     (e.p.personalise ? '<input class="line-note" data-note="' + id + '" maxlength="200" value="' + esc(e.note) + '" placeholder="' + esc(noteLabel(e.p)) + '">' : '') + '</div>' +
-    '<strong>' + money(e.q * Number(e.p.price)) + '</strong></div>'; }).join('') : '<div class="empty" style="padding:40px 0">Your cart is empty.</div>';
+    '<strong>' + money(e.q * Number(e.p.price)) + '</strong></div>'; }).join('')
+    : (sent ? '' : '<div class="empty" style="padding:40px 0">Your cart is empty.</div>'));
 }
 function change(id, d, note) {
   const p = byId(id), max = p ? MU.stockOf(p) : 0, cur = cart[id] || { q: 0, note: '' };
+  sent = null;
   const q = Math.min(max, Math.max(0, cur.q + d));
   if (!q) delete cart[id]; else cart[id] = { q, note: note !== undefined ? note : cur.note };
   saveCart(); renderCart();
@@ -332,10 +342,11 @@ $('#openCart').onclick = () => openEl($('#drawer'));
 $('#closeCart').onclick = $('#closeModal').onclick = $('#ov').onclick = closeAll;
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll(); });
 $('#mAdd').onclick = () => { if (viewing) { change(viewing.id, 1, $('#mNote').value.trim()); closeAll(); openEl($('#drawer')); } };
-$('#mOrder').onclick = () => { if (viewing && MU.stockOf(viewing)) placeOrder([{ p: viewing, q: 1, note: $('#mNote').value.trim() }]); };
-$('#send').onclick = () => placeOrder(cartEntries());
+$('#mOrder').onclick = () => { if (viewing && MU.stockOf(viewing)) placeOrder([{ p: viewing, q: 1, note: $('#mNote').value.trim() }], false); };
+$('#send').onclick = () => placeOrder(cartEntries(), true);
 $('#sort').onchange = e => { sortBy = e.target.value; renderGrid(); };
 $('#budget').onchange = e => { budget = e.target.value; renderGrid(); };
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-keep]')) { sent = null; closeAll(); renderCart(); } });
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.matches && t.matches('[data-date]')) onDate(t.value);
