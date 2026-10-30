@@ -1,5 +1,16 @@
 // Shared data layer. Talks to Supabase when configured, otherwise runs a browser-only demo.
 (function () {
+  function getVisitorId() {
+    try {
+      let vid = localStorage.getItem('mu_visitor_id');
+      if (!vid) {
+        vid = 'v_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+        localStorage.setItem('mu_visitor_id', vid);
+      }
+      return vid;
+    } catch (e) { return 'v_unknown'; }
+  }
+
   const C = window.MU_CONFIG || {};
   const live = !!(C.SUPABASE_URL && C.SUPABASE_ANON_KEY && window.supabase);
   const sb = live ? window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY) : null;
@@ -223,16 +234,37 @@
 
     // ---- Orders ----
     async saveOrder(o) {
+      const vid = getVisitorId();
       if (!live) {
         const l = rd(K.o, []);
-        l.unshift({ id: 'o' + Date.now() + Math.random().toString(36).slice(2, 5), ref: o.ref, items: o.items, total: o.total, delivery_date: o.delivery_date || null, status: 'new', created_at: new Date().toISOString(), status_log: [{ s: 'new', at: new Date().toISOString() }] });
+        const recent = l.filter(x => x.visitor_id === vid);
+        if (recent.length >= 5) {
+          throw new Error('Limit reached: Maximum 5 orders allowed per visitor.');
+        }
+        l.unshift({ id: 'o' + Date.now() + Math.random().toString(36).slice(2, 5), ref: o.ref, items: o.items, total: o.total, delivery_date: o.delivery_date || null, visitor_id: vid, status: 'new', created_at: new Date().toISOString(), status_log: [{ s: 'new', at: new Date().toISOString() }] });
         wr(K.o, l); return;
       }
-      let { error } = await sb.from('orders').insert({ ref: o.ref, items: o.items, total: o.total, delivery_date: o.delivery_date || null });
-      if (error && /delivery_date/.test(error.message || '')) { // database not upgraded yet: save the order without the date
+      try {
+        await sb.rpc('check_visitor_order_limit', { p_visitor_id: vid, p_max_orders: 5, p_window_hours: 24 });
+      } catch (err) {}
+      let { error } = await sb.from('orders').insert({ ref: o.ref, items: o.items, total: o.total, delivery_date: o.delivery_date || null, visitor_id: vid });
+      if (error && /delivery_date|visitor_id/.test(error.message || '')) {
         ({ error } = await sb.from('orders').insert({ ref: o.ref, items: o.items, total: o.total }));
       }
       if (error) throw error;
+    },
+    async cleanupOrders(daysOld) {
+      daysOld = daysOld || 30;
+      if (!live) {
+        const l = rd(K.o, []);
+        const initLen = l.length;
+        const filtered = l.filter(x => x.status !== 'cancelled' && x.status !== 'rejected');
+        wr(K.o, filtered);
+        return initLen - filtered.length;
+      }
+      const { data, error } = await sb.rpc('cleanup_spam_orders', { days_old: daysOld });
+      if (error) throw error;
+      return data || 0;
     },
     async getOrders() {
       if (!live) return rd(K.o, []);

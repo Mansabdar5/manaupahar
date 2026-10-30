@@ -99,7 +99,11 @@
     <div id="tab-orders" style="display:none">
       <div class="panel">
         <h2>Orders</h2>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px"><button class="btn btn-s" id="enableOrderAlerts" type="button">🔔 Enable new-order notifications</button><button class="btn btn-s" id="refreshOrders" type="button">↻ Refresh orders</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px">
+          <button class="btn btn-s" id="enableOrderAlerts" type="button">🔔 Enable new-order notifications</button>
+          <button class="btn btn-s" id="refreshOrders" type="button">↻ Refresh orders</button>
+          <button class="btn btn-d" id="cleanupSpamBtn" type="button">🧹 Clean up spam / cancelled orders</button>
+        </div>
         <div class="hint" style="margin:-6px 0 12px">Every time a customer taps the WhatsApp button, the order appears here as <b>New</b>. <b>Confirm</b> it once you agree it on WhatsApp: the stock goes down automatically. Then move it along: <b>Packed → Shipped → Delivered</b>. Customers see each step on the <b>Track order</b> page. Open <b>Tracking details</b> on an order to add the courier and tracking number, and use <b>Copy update message</b> to paste a status update with the tracking link into the customer's WhatsApp chat. <b>Cancel</b> puts the stock back.</div>
         <div class="subtabs" id="ofilter"></div>
         <div class="list" id="olist"></div>
@@ -369,6 +373,12 @@ $('#enableOrderAlerts').onclick = async () => {
   toast(permission === 'granted' ? 'New-order notifications enabled while this admin page is open.' : 'Notification permission was not granted.', permission !== 'granted');
 };
 $('#refreshOrders').onclick = () => guard(async () => { await loadOrders(); toast('Orders refreshed'); });
+$('#cleanupSpamBtn').onclick = () => guard(async () => {
+  if (!confirm('Are you sure you want to clean up all cancelled, rejected, or spam orders older than 30 days?')) return;
+  const count = await MU.cleanupOrders(30);
+  await loadOrders();
+  toast('Cleaned up ' + count + ' order(s)');
+});
 function renderOrders() {
   const counts = {}; orders.forEach(o => counts[o.status] = (counts[o.status] || 0) + 1);
   $('#ofilter').innerHTML = [['new', 'New'], ['confirmed', 'Confirmed'], ['packed', 'Packed'], ['shipped', 'Shipped'], ['delivered', 'Delivered'], ['cancelled', 'Cancelled'], ['all', 'All']]
@@ -377,7 +387,7 @@ function renderOrders() {
   $('#olist').innerHTML = list.length ? list.map(o => {
     const [label, cls] = STATUS[o.status] || [o.status, ''];
     const when = new Date(o.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-    const items = (o.items || []).map(it => '<li>' + (it.kind === 'addon' ? '➕ ' : it.kind === 'delivery' ? '🚚 ' : '') + esc(it.name) + (it.kind === 'delivery' ? '' : ' × ' + esc(it.qty)) + ' – ' + (it.kind === 'delivery' && !Number(it.price) ? 'free / to confirm' : money(it.qty * it.price)) +
+    const items = (o.items || []).map(it => '<li>' + (it.kind === 'addon' ? '➕ ' : it.kind === 'delivery' ? '🚚 ' : it.kind === 'message' ? '💌 ' : '') + esc(it.name) + (it.kind === 'delivery' || it.kind === 'message' ? '' : ' × ' + esc(it.qty)) + (it.kind === 'message' ? '' : ' – ' + (it.kind === 'delivery' && !Number(it.price) ? 'free / to confirm' : money(it.qty * it.price))) +
       (it.note ? '<small>✍ ' + esc(it.note) + '</small>' : '') + '</li>').join('');
     const id = esc(o.id);
     const B = (to, text, cls) => '<button class="btn ' + cls + '" data-os="' + to + '" data-id="' + id + '">' + text + '</button>';
@@ -411,7 +421,7 @@ $('#olist').onclick = e => {
   if (cf) {
     const o = orders.find(x => String(x.id) === String(cf.dataset.confirmmsg)); if (!o) return;
     const lines = ['Hello! Thank you for your order with ManaUpahar 🎁', 'Order ref: ' + o.ref, ''];
-    (o.items || []).forEach(it => lines.push((it.kind === 'addon' ? '➕ ' : it.kind === 'delivery' ? '🚚 ' : '• ') + it.name + (it.kind === 'delivery' ? '' : ' × ' + it.qty)));
+    (o.items || []).forEach(it => lines.push(it.kind === 'message' ? '💌 Gift card message: ' + it.note : (it.kind === 'addon' ? '➕ ' : it.kind === 'delivery' ? '🚚 ' : '• ') + it.name + (it.kind === 'delivery' ? '' : ' × ' + it.qty)));
     lines.push('', 'Total: ' + money(o.total));
     if (o.delivery_date) lines.push('Delivery date: ' + o.delivery_date.split('-').reverse().join('/'));
     if (payInfo) lines.push('', payInfo);

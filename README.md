@@ -52,6 +52,10 @@ Run the SQL **before** uploading the new files to GitHub. Then upload the change
 
 Customers can submit a rating and review from a product detail window. Reviews stay pending until you approve them in **Admin → Reviews**. Only approved reviews appear publicly. For an existing Supabase site, run `upgrade-v7-reviews.sql` once for text reviews, then `upgrade-v8-review-photos.sql` once to enable customer photo uploads. Customer photos are compressed to JPEG, limited to 5 MB before processing, stored in a private Supabase bucket, and shown to shoppers only after the linked review is approved. In demo mode, text reviews are stored only in that browser; photo uploads require the connected Supabase storage.
 
+## Gift message card
+
+The cart and the single-gift order window have an optional **Message for the gift card** box (up to 200 characters). The message is added to the customer's WhatsApp order and saved on the order. In **Admin → Orders** it shows as a 💌 line, so you can write it on the card. It also appears in your **confirmation message**. It never appears on the public Track page. No database upgrade is needed.
+
 ## Order tracking
 
 Customers can follow their order at `yoursite.vercel.app/track`. They get there from the **Track order** link at the top of the shop, from the footer, or from the **Track this order** link shown right after they send an order. The page shows the stages **Order placed → Confirmed → Packed → Shipped → Delivered** with the time of each step, plus the courier, tracking number, a note from you and the items. It refreshes by itself every minute. The same device remembers the references of orders placed there.

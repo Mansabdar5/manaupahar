@@ -145,6 +145,8 @@ let addons = [], zones = [], chosen = new Set(), pincode = '';
 try { chosen = new Set(JSON.parse(localStorage.getItem('mu_addons') || '[]').map(String)); pincode = localStorage.getItem('mu_pin') || ''; } catch (e) {}
 let occasion = 'all', products = [], settings = {}, cat = 'All', term = '', sortBy = 'rec', budget = 'all', deliveryDate = '', wishOnly = false, finderTerms = [];
 try { deliveryDate = localStorage.getItem('mu_date') || ''; } catch (e) {}
+let giftMsg = '';
+try { giftMsg = (localStorage.getItem('mu_giftmsg') || '').slice(0, 200); } catch (e) {}
 let cart = {};
 try {
   const raw = JSON.parse(localStorage.getItem('mu_cart') || '{}');
@@ -240,6 +242,8 @@ function optionsHTML(k) {
     (a.per_item ? ' <small>(per gift)</small>' : '') + '</span><b>+' + money(a.price) + '</b></label>').join('') + '</div>';
   if (zones.length) o += '<div class="opt"><label class="opt-t" for="' + k + 'Pin">🚚 Delivery pincode' + (String(settings.zones_only) === '1' ? '' : ' (optional)') + '</label>' +
     '<input type="text" inputmode="numeric" maxlength="6" id="' + k + 'Pin" data-pin placeholder="6-digit pincode" value="' + esc(pincode) + '"><div class="opt-s" data-pinstat></div></div>';
+  o += '<div class="opt"><label class="opt-t" for="' + k + 'Msg">💌 Message for the gift card (optional)</label>' +
+    '<textarea id="' + k + 'Msg" data-giftmsg rows="2" maxlength="200" placeholder="e.g. Happy birthday Amma! With all our love">' + esc(giftMsg) + '</textarea><div class="opt-s">We will write it on a card with your gift.</div></div>';
   o += '<div class="opt"><label class="opt-t" for="' + k + 'Date">📅 Delivery date (optional)</label><input type="date" id="' + k + 'Date" data-date></div>';
   return o;
 }
@@ -260,14 +264,28 @@ function renderModalSum() {
 }
 
 // Builds the WhatsApp message, opens WhatsApp, and saves the order so the shop owner can track it.
+
+let lastOrderTimestamp = 0;
 function placeOrder(es, fromCart) {
   if (!es.length) return;
+  
+  const now = Date.now();
+  const cooldownMs = 15000; // 15 seconds cooldown
+  if (now - lastOrderTimestamp < cooldownMs) {
+    const waitSecs = Math.ceil((cooldownMs - (now - lastOrderTimestamp)) / 1000);
+    toast('Please wait ' + waitSecs + ' second(s) before placing another order.');
+    return;
+  }
+  lastOrderTimestamp = now;
+
   const T = totals(es);
   if (T.blocked) { toast(deliveryText(T, T.sub)); return; }
   const items = es.map(e => ({ id: e.p.id, kind: 'gift', name: e.p.name, price: Number(e.p.price), qty: e.q, note: (e.note || '').trim() }));
   T.ax.forEach(x => items.push({ id: 'addon:' + x.a.id, kind: 'addon', name: x.a.name, price: Number(x.a.price), qty: x.q }));
   if (T.del && T.del.status === 'ok') items.push({ id: 'delivery', kind: 'delivery', name: 'Delivery – ' + T.del.z.label + ' (' + pincode + ')' + (T.del.free ? ' free' : ''), price: T.charge, qty: 1 });
   else if (T.del && T.del.status === 'unknown') items.push({ id: 'delivery', kind: 'delivery', name: 'Delivery – charge to be confirmed (' + pincode + ')', price: 0, qty: 1 });
+  const gm = giftMsg.trim();
+  if (gm) items.push({ id: 'giftmsg', kind: 'message', name: 'Gift card message', price: 0, qty: 1, note: gm });
   const total = T.total, date = deliveryDate || '';
   if (date && date < dateFrom(neededDays(es))) { toast('These gifts need ' + neededDays(es) + ' days to prepare. Please pick a delivery date of ' + fmtDate(dateFrom(neededDays(es))) + ' or later.'); return; }
   const ref = MU.genRef();
@@ -277,6 +295,7 @@ function placeOrder(es, fromCart) {
     if ((e.note || '').trim()) lines.push('   ✍ ' + noteLabel(e.p) + ': ' + e.note.trim());
   });
   T.ax.forEach(x => lines.push('➕ ' + x.a.name + (x.q > 1 ? ' × ' + x.q : '') + ' – ' + money(x.amt)));
+  if (gm) lines.push('💌 Gift card message: ' + gm);
   if (T.del && T.del.status === 'ok') lines.push('🚚 Delivery to ' + T.del.z.label + ' (' + pincode + '): ' + (T.del.free ? 'free' : money(T.charge)));
   else if (T.del && T.del.status === 'unknown') lines.push('🚚 Delivery to ' + pincode + ': charge to be confirmed');
   const msg = 'Hello ManaUpahar! 🎁\nOrder ref: ' + ref + '\n\n' + lines.join('\n') + '\n\nTotal: ' + money(total) + '\n\nMy name:\nDelivery address:\nDelivery date:' + (date ? ' ' + fmtDate(date) : '');
@@ -289,8 +308,8 @@ function placeOrder(es, fromCart) {
 // Start fresh once an order has been sent. The pincode is kept because most customers reuse it.
 function resetAfterOrder(ref, url, fromCart) {
   if (fromCart) { cart = {}; saveCart(); }
-  chosen.clear(); deliveryDate = '';
-  try { localStorage.setItem('mu_addons', '[]'); localStorage.setItem('mu_date', ''); } catch (e) {}
+  chosen.clear(); deliveryDate = ''; giftMsg = '';
+  try { localStorage.setItem('mu_addons', '[]'); localStorage.setItem('mu_date', ''); localStorage.setItem('mu_giftmsg', ''); } catch (e) {}
   closeAll(); renderOptions(); renderCart();
   showSentBar(ref, url);
 }
@@ -516,6 +535,12 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('input', e => {
   const t = e.target;
+  if (t.dataset && 'giftmsg' in t.dataset) {
+    giftMsg = t.value.slice(0, 200);
+    document.querySelectorAll('[data-giftmsg]').forEach(x => { if (x !== t) x.value = giftMsg; });
+    try { localStorage.setItem('mu_giftmsg', giftMsg); } catch (err) {}
+    return;
+  }
   if (t.dataset && 'pin' in t.dataset) {
     pincode = t.value.replace(/\D/g, '').slice(0, 6); t.value = pincode;
     document.querySelectorAll('[data-pin]').forEach(x => { if (x !== t) x.value = pincode; });

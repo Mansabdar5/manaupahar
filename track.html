@@ -76,7 +76,7 @@ function render(o) {
   if (facts.length) h += '<dl class="facts">' + facts.map(f => '<dt>' + f[0] + '</dt><dd>' + esc(f[1]) + '</dd>').join('') + '</dl>';
   if (/^https?:\/\//i.test(o.tracking_url || '')) h += '<a class="btn btn-p" style="margin-top:10px" href="' + esc(o.tracking_url) + '" target="_blank" rel="noopener">Track with the courier ↗</a>';
   if (o.customer_note) h += '<div class="tnote"><b>A note from us:</b> ' + esc(o.customer_note) + '</div>';
-  const items = (o.items || []).filter(i => i.kind !== 'delivery');
+  const items = (o.items || []).filter(i => i.kind !== 'delivery' && i.kind !== 'message');
   if (items.length) h += '<div class="titems"><b>In this order</b><ul>' + items.map(i => '<li>' + (i.kind === 'addon' ? '➕ ' : '') + esc(i.name) + (i.qty && i.qty !== '1' ? ' × ' + esc(i.qty) : '') + '</li>').join('') + '</ul></div>';
   h += '<a class="btn btn-g" style="margin-top:12px" target="_blank" rel="noopener" href="' + esc(waLink('Hello ManaUpahar! I have a question about my order ' + o.ref + '.')) + '">Ask us about this order on WhatsApp</a>' +
     ' <button class="btn btn-s" id="tRefresh" type="button" style="margin-top:12px">↻ Refresh</button></div>';
