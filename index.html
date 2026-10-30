@@ -20,12 +20,23 @@
   <h1>Handcrafted Gifts That <span>Carry a Memory</span></h1>
   <p>Every piece is made by hand by skilled artisans. Choose a gift and place your order directly on WhatsApp.</p>
   <div class="search"><input id="q" type="search" placeholder="Search handmade gifts…" aria-label="Search handmade gifts"></div>
+  <div class="hero-actions"><button class="btn btn-p" id="openFinder" type="button">🎁 Find the perfect gift</button><button class="btn btn-s" id="showWishes" type="button">♡ My wishlist <span id="wishCount">0</span></button></div>
   <div class="how"><span>Handmade by artisans</span><span>Carefully packed</span><span>Order on WhatsApp</span></div>
 </div></section>
 
 <main class="container">
   <div class="cats" id="cats"></div>
+  <div class="finder panel" id="finder" hidden>
+    <div class="finder-head"><div><h2>Find a thoughtful gift</h2><p>Tell us a little about the gift and we’ll suggest matching handmade pieces.</p></div><button class="x" id="closeFinder" type="button" aria-label="Close gift finder">×</button></div>
+    <div class="row2">
+      <div><label for="finderFor">Who is it for?</label><select id="finderFor"><option value="any">Anyone</option><option value="women">Her / women</option><option value="men">Him / men</option><option value="kids">Children</option><option value="home">A home</option><option value="colleague">A colleague</option></select></div>
+      <div><label for="finderOcc">Occasion</label><select id="finderOcc"><option value="all">Any occasion</option></select></div>
+      <div><label for="finderBudget">Budget</label><select id="finderBudget"><option value="all">Any budget</option><option value="500">Under ₹500</option><option value="1000">Under ₹1,000</option><option value="2000">Under ₹2,000</option><option value="5000">Under ₹5,000</option></select></div>
+    </div>
+    <button class="btn btn-p" id="runFinder" type="button">Show gift ideas</button>
+  </div>
   <div class="toolbar">
+    <button class="chip" id="wishOnly" type="button">♡ Wishlist only</button>
     <select id="sort" aria-label="Sort gifts">
       <option value="rec">Recommended</option><option value="new">Newest first</option>
       <option value="low">Price: low to high</option><option value="high">Price: high to low</option>
@@ -39,11 +50,21 @@
   <div class="grid" id="grid"><div class="empty">Loading gifts…</div></div>
 </main>
 
+<section class="container enquiry panel" id="enquiry">
+  <h2>Need help choosing a gift?</h2><p>Ask us about customisation, bulk orders or a product. We’ll be happy to help.</p>
+  <form id="enquiryForm">
+    <div class="row2"><div><label for="enqName">Your name</label><input id="enqName" type="text" maxlength="70" required placeholder="Your name"></div><div><label for="enqPhone">Phone number (optional)</label><input id="enqPhone" type="tel" maxlength="18" placeholder="Your phone number"></div></div>
+    <label for="enqMsg">How can we help?</label><textarea id="enqMsg" rows="3" maxlength="600" required placeholder="I’m looking for a customised gift / bulk order..."></textarea>
+    <button class="btn btn-g" type="submit">Send enquiry on WhatsApp</button>
+  </form>
+</section>
+
 <footer class="foot">
   <div class="container" id="footGrid"></div>
   <strong>ManaUpahar</strong> – Where Every Gift Carries a Memory<br>
   <span id="footNote"></span>
 </footer>
+
 
 <a class="wa-float" id="waFloat" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">💬 <span>Chat with us</span></a>
 <div class="toast" id="toast"></div>
@@ -93,7 +114,7 @@ const $ = s => document.querySelector(s);
 const esc = MU.esc, money = MU.money;
 let addons = [], zones = [], chosen = new Set(), pincode = '';
 try { chosen = new Set(JSON.parse(localStorage.getItem('mu_addons') || '[]').map(String)); pincode = localStorage.getItem('mu_pin') || ''; } catch (e) {}
-let occasion = 'all', products = [], settings = {}, cat = 'All', term = '', sortBy = 'rec', budget = 'all', deliveryDate = '';
+let occasion = 'all', products = [], settings = {}, cat = 'All', term = '', sortBy = 'rec', budget = 'all', deliveryDate = '', wishOnly = false, finderTerms = [];
 try { deliveryDate = localStorage.getItem('mu_date') || ''; } catch (e) {}
 let cart = {};
 try {
@@ -104,6 +125,9 @@ try {
   });
 } catch (e) {}
 const saveCart = () => { try { localStorage.setItem('mu_cart', JSON.stringify(cart)); } catch (e) {} };
+let wishlist = new Set();
+try { wishlist = new Set(JSON.parse(localStorage.getItem('mu_wishlist') || '[]').map(String)); } catch (e) {}
+function saveWishlist() { try { localStorage.setItem('mu_wishlist', JSON.stringify([...wishlist])); } catch (e) {} $('#wishCount').textContent = wishlist.size; }
 const byId = id => products.find(p => String(p.id) === String(id));
 const cover = p => MU.imagesOf(p)[0] || '';
 
@@ -264,8 +288,8 @@ function renderGrid() {
   const price = p => Number(p.price) || 0, newest = (a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''));
   const cmp = { rec: (a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0), new: newest, low: (a, b) => price(a) - price(b), high: (a, b) => price(b) - price(a) }[sortBy];
   const list = products.map((p, i) => [p, i])
-    .filter(([p]) => (cat === 'All' || p.category === cat) && (occasion === 'all' || (p.occasions || []).includes(occasion)) && inBudget(p) &&
-      (!t || [p.name, p.description, p.category, p.material, p.made_by, p.region, (p.occasions || []).join(' ')].join(' ').toLowerCase().includes(t)))
+    .filter(([p]) => (!wishOnly || wishlist.has(String(p.id))) && (cat === 'All' || p.category === cat) && (occasion === 'all' || (p.occasions || []).includes(occasion)) && inBudget(p) &&
+      (!t || [p.name, p.description, p.category, p.material, p.made_by, p.region, (p.occasions || []).join(' ')].join(' ').toLowerCase().includes(t)) && (!finderTerms.length || finderTerms.some(k => [p.name, p.description, p.category, p.material, p.made_by, p.region].join(' ').toLowerCase().includes(k))))
     .sort((x, y) => ((MU.stockOf(x[0]) === 0) - (MU.stockOf(y[0]) === 0)) || cmp(x[0], y[0]) || x[1] - y[1]).map(x => x[0]);
   if (!list.length) { $('#grid').innerHTML = '<div class="empty">No gifts found here yet. Try another category or budget.</div>'; return; }
   $('#grid').innerHTML = list.map(p => {
@@ -278,6 +302,7 @@ function renderGrid() {
     const badges = (!out && (p.featured || isNew(p))) ? '<div class="badges">' + (p.featured ? '<span class="b-best">⭐ Best seller</span>' : '') + (isNew(p) ? '<span class="b-new">New</span>' : '') + '</div>' : '';
     return '<article class="card"><div class="img" data-view="' + id + '">' +
       '<img loading="lazy" src="' + esc(cover(p)) + '" alt="' + esc(p.name) + '">' +
+      '<button class="wish-btn' + (wishlist.has(String(p.id)) ? ' active' : '') + '" type="button" data-wish="' + id + '" aria-label="' + (wishlist.has(String(p.id)) ? 'Remove from' : 'Add to') + ' wishlist">' + (wishlist.has(String(p.id)) ? '♥' : '♡') + '</button>' +
       '<span class="tag">' + esc(p.category) + '</span>' + badges +
       (out ? '<div class="sold">SOLD OUT</div>' : (left <= 3 ? '<span class="low-tag">Only ' + left + ' left</span>' : '')) + '</div>' +
       '<div class="body"><h3>' + esc(p.name) + '</h3>' +
@@ -350,8 +375,9 @@ function view(id) {
 }
 
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-c],[data-add],[data-view],[data-inc],[data-dec],[data-thumb]'); if (!t) return;
-  if (t.dataset.c) { cat = t.dataset.c; renderCats(); renderGrid(); }
+  const t = e.target.closest('[data-c],[data-add],[data-view],[data-inc],[data-dec],[data-thumb],[data-wish]'); if (!t) return;
+  if (t.dataset.wish) { const id = String(t.dataset.wish); wishlist.has(id) ? wishlist.delete(id) : wishlist.add(id); saveWishlist(); renderGrid(); }
+  else if (t.dataset.c) { cat = t.dataset.c; renderCats(); renderGrid(); }
   else if (t.dataset.add) { change(t.dataset.add, 1); openEl($('#drawer')); }
   else if (t.dataset.view) view(t.dataset.view);
   else if (t.dataset.thumb) showPhoto(Number(t.dataset.thumb));
@@ -362,7 +388,7 @@ document.addEventListener('input', e => {
   const id = e.target.dataset && e.target.dataset.note;
   if (id && cart[id]) { cart[id].note = e.target.value; saveCart(); }
 });
-$('#q').addEventListener('input', e => { term = e.target.value; renderGrid(); });
+$('#q').addEventListener('input', e => { term = e.target.value; finderTerms = []; renderGrid(); });
 $('#openCart').onclick = () => openEl($('#drawer'));
 $('#closeCart').onclick = $('#closeModal').onclick = $('#ov').onclick = closeAll;
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll(); });
@@ -373,6 +399,27 @@ $('#send').onclick = () => placeOrder(cartEntries(), true);
 $('#sort').onchange = e => { sortBy = e.target.value; renderGrid(); };
 $('#occ').onchange = e => { occasion = e.target.value; renderGrid(); };
 $('#budget').onchange = e => { budget = e.target.value; renderGrid(); };
+$('#showWishes').onclick = () => { wishOnly = !wishOnly; $('#wishOnly').classList.toggle('on', wishOnly); renderGrid(); document.querySelector('main').scrollIntoView({ behavior: 'smooth' }); };
+$('#wishOnly').onclick = () => { wishOnly = !wishOnly; $('#wishOnly').classList.toggle('on', wishOnly); renderGrid(); };
+$('#openFinder').onclick = () => { $('#finder').hidden = false; $('#finder').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+$('#closeFinder').onclick = () => { $('#finder').hidden = true; };
+$('#runFinder').onclick = () => {
+  const who = $('#finderFor').value, occ = $('#finderOcc').value, cap = $('#finderBudget').value;
+  const terms = { women: 'jewellery textile painting', men: 'wood metal desk', kids: 'kids toy colourful', home: 'home décor pottery vase brass', colleague: 'desk bamboo table' };
+  occasion = occ; $('#occ').value = occ;
+  budget = cap === 'all' ? 'all' : (cap === '500' ? '0-500' : cap === '1000' ? '0-1000' : cap === '2000' ? '0-2000' : '0-5000');
+  $('#budget').value = budget; cat = 'All'; renderCats();
+  finderTerms = who === 'any' ? [] : (terms[who] || '').split(/\s+/).filter(Boolean); term = ''; $('#q').value = '';
+  renderGrid(); $('#finder').hidden = true; document.querySelector('main').scrollIntoView({ behavior: 'smooth' });
+  toast('Here are some gift ideas. You can refine the results using filters.');
+};
+$('#enquiryForm').onsubmit = e => {
+  e.preventDefault();
+  const name = $('#enqName').value.trim(), phone = $('#enqPhone').value.trim(), msg = $('#enqMsg').value.trim();
+  if (!name || !msg) return;
+  const text = 'Hello ManaUpahar! I have an enquiry.\nName: ' + name + (phone ? '\nPhone: ' + phone : '') + '\nMessage: ' + msg;
+  window.open(waLink(text), '_blank', 'noopener');
+};
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.matches && t.matches('[data-date]')) onDate(t.value, neededDays(t.id[0] === 'm' ? modalBasket() : cartEntries()));
@@ -426,6 +473,8 @@ function renderFooter() {
   $('#footNote').textContent = settings.note || '';
   const occs = [...new Set(products.flatMap(p => p.occasions || []))].sort();
   $('#occ').innerHTML = '<option value="all">Any occasion</option>' + occs.map(o => '<option>' + esc(o) + '</option>').join('');
+  $('#finderOcc').innerHTML = '<option value="all">Any occasion</option>' + occs.map(o => '<option value="' + esc(o) + '">' + esc(o) + '</option>').join('');
+  saveWishlist();
   $('#occ').style.display = occs.length ? '' : 'none';
   renderCats(); renderGrid(); renderOptions(); renderCart(); renderFooter();
   const g = new URLSearchParams(location.search).get('gift');

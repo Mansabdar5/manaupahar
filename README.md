@@ -77,3 +77,12 @@ After running `upgrade-v6.sql`, gifts that used Birthday, Anniversary, Wedding, 
 ## Changing things later
 - Updated a file on GitHub (for example `config.js` or `logo.png`)? Vercel republishes automatically.
 - Custom domain (like manaupahar.in): Vercel → your project → **Settings → Domains**.
+
+## New customer features (October 2026)
+The updated shop includes these additions and does not require a database migration:
+- **Wishlist:** tap the heart on a gift card to save it in this browser. Use **My wishlist** / **Wishlist only** to view saved gifts. It is device/browser-specific until customer accounts are added.
+- **Gift Finder:** choose recipient, occasion and budget to filter the catalogue for gift ideas. The suggestions use the product name, description, category and craft details already entered in Admin.
+- **Customer enquiries:** the enquiry form prepares a WhatsApp message with the customer's name, optional phone number and question. It does not store enquiry details in the database.
+- **Admin new-order alerts:** in Admin → Orders, choose **Enable new-order notifications** and allow browser notifications. Keep the admin page open; it checks for new orders every 60 seconds. Use **Refresh orders** to check immediately. Browser notifications require a supported browser and secure HTTPS deployment.
+
+**Order history is not enabled yet.** The current WhatsApp-first flow does not collect a verified customer identity in the database, and public customers are intentionally blocked from reading orders by Supabase Row Level Security. A secure order-history feature needs a customer phone/email verification flow (preferably an OTP) and a server-side lookup that only returns that customer's orders. Do not loosen the orders table read policy to `anon` to make order history work; that would expose customer order data.

@@ -98,6 +98,7 @@
     <div id="tab-orders" style="display:none">
       <div class="panel">
         <h2>Orders</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px"><button class="btn btn-s" id="enableOrderAlerts" type="button">🔔 Enable new-order notifications</button><button class="btn btn-s" id="refreshOrders" type="button">↻ Refresh orders</button></div>
         <div class="hint" style="margin:-6px 0 12px">Every time a customer taps the WhatsApp button, the order appears here as <b>New</b>. <b>Confirm</b> it once you agree it on WhatsApp: the stock goes down automatically. <b>Cancel</b> puts the stock back.</div>
         <div class="subtabs" id="ofilter"></div>
         <div class="list" id="olist"></div>
@@ -190,7 +191,7 @@ $('#occs').innerHTML = OCCASIONS.map(o => '<label><input type="checkbox" value="
 const getOccs = () => [...document.querySelectorAll('#occs input:checked')].map(x => x.value);
 const setOccs = arr => document.querySelectorAll('#occs input').forEach(x => x.checked = (arr || []).includes(x.value));
 const MAX_PHOTOS = 6;
-let products = [], orders = [], photos = [], ofilter = 'new', timer = null;
+let products = [], orders = [], photos = [], ofilter = 'new', timer = null, previousNewOrders = null;
 
 $('#brand').innerHTML = MU.logoHTML();
 
@@ -341,9 +342,19 @@ const STATUS = { new: ['New', 'new'], confirmed: ['Confirmed', ''], delivered: [
 async function loadOrders() {
   orders = await MU.getOrders();
   const n = orders.filter(o => o.status === 'new').length;
+  if (previousNewOrders !== null && n > previousNewOrders && 'Notification' in window && Notification.permission === 'granted') {
+    new Notification('ManaUpahar: new order', { body: (n - previousNewOrders) + ' new order(s) need your attention.' });
+  }
+  previousNewOrders = n;
   $('#newCnt').textContent = n; $('#newCnt').style.display = n ? '' : 'none';
   renderOrders(); renderSummary();
 }
+$('#enableOrderAlerts').onclick = async () => {
+  if (!('Notification' in window)) { toast('This browser does not support desktop notifications.', true); return; }
+  const permission = await Notification.requestPermission();
+  toast(permission === 'granted' ? 'New-order notifications enabled while this admin page is open.' : 'Notification permission was not granted.', permission !== 'granted');
+};
+$('#refreshOrders').onclick = () => guard(async () => { await loadOrders(); toast('Orders refreshed'); });
 function renderOrders() {
   const counts = {}; orders.forEach(o => counts[o.status] = (counts[o.status] || 0) + 1);
   $('#ofilter').innerHTML = [['new', 'New'], ['confirmed', 'Confirmed'], ['delivered', 'Delivered'], ['cancelled', 'Cancelled'], ['all', 'All']]
