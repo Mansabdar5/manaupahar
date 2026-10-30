@@ -16,25 +16,25 @@
     '<stop offset="0" stop-color="' + c1 + '"/><stop offset="1" stop-color="' + c2 + '"/></linearGradient></defs>' +
     '<rect width="400" height="400" fill="url(#g)"/><text x="200" y="245" font-size="150" text-anchor="middle">' + emoji + '</text></svg>');
 
+  // Sample handicrafts shown in demo mode only. Delete them in the admin page once you add your own.
   const sample = [
-    { id: 's1', name: 'Hand-painted Terracotta Planter', category: 'Home Décor', price: 499, description: 'A charming hand-painted terracotta planter, finished by local artisans. Each piece has its own character and subtle variations.', image_url: ph('🪴', '#E9D7BE', '#C6A27A'), stock: 12 },
-    { id: 's2', name: 'Handwoven Jute Gift Hamper', category: 'Gift Hampers', price: 899, description: 'A reusable handwoven jute basket filled with thoughtful little treasures — a warm, sustainable gift for any occasion.', image_url: ph('🧺', '#E8D8B7', '#B99A6B'), stock: 5 },
-    { id: 's3', name: 'Artisan Beaded Jewellery Set', category: 'Jewellery', price: 699, description: 'A colourful handmade jewellery set assembled with care by artisans. A distinctive gift for birthdays and celebrations.', image_url: ph('📿', '#F0D8C8', '#C98D75'), stock: 2 },
-    { id: 's4', name: 'Carved Wooden Keepsake Box', category: 'Woodcraft', price: 799, description: 'A decorative wooden keepsake box with a traditional carved look — perfect for jewellery, letters and treasured memories.', image_url: ph('🪵', '#E6D0AE', '#A77B51'), stock: 8 },
-    { id: 's5', name: 'Handmade Festive Diya Set', category: 'Festive Gifts', price: 399, description: 'A set of artisan-made clay diyas to bring a warm handmade touch to festive tables, puja corners and celebrations.', image_url: ph('🪔', '#F4E0A6', '#D9A441'), stock: 0 },
-    { id: 's6', name: 'Block-Printed Cotton Tote', category: 'Textiles', price: 549, description: 'A reusable cotton tote with a traditional block-print inspired pattern — practical, beautiful and easy to gift.', image_url: ph('👜', '#E2E8D5', '#9BAA83'), stock: 6 }
+    { id: 's1', name: 'Hand-painted Terracotta Vase', category: 'Pottery & Terracotta', price: 699, description: 'Wheel-thrown and hand-painted by the potters, finished with a natural clay glaze.', image_url: ph('🏺', '#FFE7CC', '#FDBA74'), stock: 6, material: 'Terracotta', size: '9 in tall', care: 'Wipe with a dry cloth. Not for hot water.', prep_days: 0, occasions: ['Housewarming', 'Festival'] },
+    { id: 's2', name: 'Carved Wooden Name Plate', category: 'Wood & Bamboo', price: 1299, description: 'Name or house number hand-carved in solid wood, finished with natural oil.', image_url: ph('🪵', '#FEF3C7', '#FCD34D'), stock: 5, material: 'Solid wood', made_by: 'Woodcraft artisans', size: '12 x 6 in', care: 'Keep dry. Wipe with a soft cloth.', prep_days: 5, occasions: ['Housewarming', 'Wedding'] },
+    { id: 's3', name: 'Handwoven Cotton Table Runner', category: 'Textiles & Handloom', price: 899, description: 'Woven on a handloom in natural cotton with a hand-knotted fringe.', image_url: ph('🧶', '#FEE2E2', '#FCA5A5'), stock: 2, material: 'Cotton', made_by: 'Weavers collective', size: '14 x 60 in', care: 'Gentle hand wash in cold water.', prep_days: 0, occasions: ['Housewarming', 'Festival'] },
+    { id: 's4', name: 'Brass Diya Set of 4', category: 'Metal & Brass', price: 999, description: 'Cast and hand-polished brass lamps in a reusable gift box.', image_url: ph('🪔', '#FEF9C3', '#FDE047'), stock: 8, material: 'Brass', size: '2.5 in each', care: 'Polish with a soft cloth.', prep_days: 0, occasions: ['Festival', 'Housewarming'] },
+    { id: 's5', name: 'Folk Art Painting (A4)', category: 'Paintings & Folk Art', price: 1499, description: 'Original hand-painted folk art on handmade paper. One of a kind.', image_url: ph('🎨', '#E0F2FE', '#7DD3FC'), stock: 0, material: 'Natural colours on handmade paper', size: 'A4', prep_days: 0, occasions: ['Wedding', 'Thank you'] },
+    { id: 's6', name: 'Bamboo Desk Pen Stand', category: 'Wood & Bamboo', price: 349, description: 'Cut, smoothed and joined by hand from sustainably grown bamboo.', image_url: ph('🎋', '#DCFCE7', '#86EFAC'), stock: 12, material: 'Bamboo', size: '4 in tall', care: 'Wipe clean with a dry cloth.', prep_days: 0, occasions: ['Thank you', 'Birthday'] }
   ];
 
-  // Demo extras so the new features can be tried straight away
-  sample[0].images = [sample[0].image_url, ph('🎁', '#E0F2FE', '#7DD3FC'), ph('✨', '#FEF9C3', '#FDE047')];
-  sample[0].personalise = true; sample[0].personalise_label = 'Name or short message (optional)';
+  // Demo extras so the newer features can be tried straight away
+  sample[0].images = [sample[0].image_url, ph('🌿', '#DCFCE7', '#86EFAC'), ph('✨', '#FEF9C3', '#FDE047')];
   sample[1].featured = true; sample[2].featured = true; sample[5].created_at = new Date().toISOString();
-  sample[1].personalise = true; sample[1].personalise_label = 'Gift note or recipient name';
+  sample[1].personalise = true; sample[1].personalise_label = 'Name or house number to carve';
 
   const sampleAddons = [
-    { id: 'a1', name: 'Gift wrapping', price: 49, per_item: true, active: true },
-    { id: 'a2', name: 'Greeting card (write your message on WhatsApp)', price: 29, per_item: false, active: true },
-    { id: 'a3', name: 'Handmade greeting tag', price: 99, per_item: false, active: true }
+    { id: 'a1', name: 'Gift box packaging', price: 79, per_item: true, active: true },
+    { id: 'a2', name: 'Handwritten message card (send your message on WhatsApp)', price: 29, per_item: false, active: true },
+    { id: 'a3', name: 'Story card about the maker', price: 19, per_item: true, active: true }
   ];
   const sampleZones = [
     { id: 'z1', label: 'Local delivery', pincodes: '500', charge: 60, free_above: 1500, active: true },
@@ -68,7 +68,7 @@
     }
   });
 
-  const defaults = { whatsapp: C.DEFAULT_WHATSAPP || '919999999999', note: 'Delivery and payment details will be confirmed with you on WhatsApp.' };
+  const defaults = { handmade_note: 'Each piece is handmade, so small variations are part of its charm.', whatsapp: C.DEFAULT_WHATSAPP || '919999999999', note: 'Delivery and payment details will be confirmed with you on WhatsApp.' };
 
   async function compress(file, max) {
     max = max || 1000;
@@ -119,7 +119,7 @@
       const { data, error } = await sb.from('settings').select('*');
       if (error) throw error;
       const o = Object.assign({}, defaults);
-      (data || []).forEach(r => { if (r.value != null && r.value !== '') o[r.key] = r.value; });
+      (data || []).forEach(r => { if (r.value != null && (r.value !== '' || r.key === 'handmade_note')) o[r.key] = r.value; });
       return o;
     },
     async saveSettings(obj) {
@@ -129,7 +129,7 @@
       if (error) throw error;
     },
     async saveProduct(p) {
-      const keys = ['name', 'category', 'price', 'description', 'image_url', 'stock', 'images', 'personalise', 'personalise_label', 'featured'];
+      const keys = ['name', 'category', 'price', 'description', 'image_url', 'stock', 'images', 'personalise', 'personalise_label', 'featured', 'material', 'made_by', 'region', 'size', 'care', 'prep_days', 'occasions'];
       const row = {};
       keys.forEach(k => { if (p[k] !== undefined) row[k] = p[k]; });
       if (!live) {
@@ -140,6 +140,7 @@
       }
       const q = p.id ? sb.from('products').update(row).eq('id', p.id) : sb.from('products').insert(row);
       const { error } = await q;
+      if (error && /column|schema cache/i.test(error.message || '')) throw new Error('The database needs the latest upgrade. Run upgrade-v6.sql in Supabase (see README), then try again.');
       if (error) throw error;
     },
     async deleteProduct(id) {

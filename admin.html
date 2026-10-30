@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>ManaUpahar | Shop Admin</title>
+<title>ManaUpahar Admin</title>
 <link rel="icon" href="favicon.png">
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -47,17 +47,32 @@
         <form id="form">
           <input type="hidden" id="pid">
           <div class="row2">
-            <div><label for="name">Gift name</label><input type="text" id="name" required maxlength="80" placeholder="e.g. Birthday Surprise Box"></div>
+            <div><label for="name">Gift name</label><input type="text" id="name" required maxlength="80" placeholder="e.g. Hand-painted Terracotta Vase"></div>
             <div><label for="price">Price (₹)</label><input type="number" id="price" required min="0" step="1" placeholder="e.g. 999"></div>
           </div>
           <label for="stockIn">Stock (how many in hand)</label>
           <input type="number" id="stockIn" required min="0" step="1" value="1" placeholder="e.g. 10">
           <div class="hint">When this reaches 0 the shop shows “Sold out” on the photo automatically.</div>
-          <label for="category">Category</label>
-          <input type="text" id="category" list="catlist" required maxlength="40" placeholder="Pick one or type a new category">
+          <label for="category">Category (the craft)</label>
+          <input type="text" id="category" list="catlist" required maxlength="40" placeholder="Choose the craft, e.g. Pottery &amp; Terracotta">
           <datalist id="catlist"></datalist>
           <label for="desc">Description (optional)</label>
-          <textarea id="desc" rows="3" maxlength="400" placeholder="What is included? Size? Any personalisation?"></textarea>
+          <textarea id="desc" rows="3" maxlength="400" placeholder="What is it, how is it made, what makes it special?"></textarea>
+          <div class="row2">
+            <div><label for="material">Material</label><input type="text" id="material" maxlength="80" placeholder="e.g. Terracotta, Sal wood, Cotton"></div>
+            <div><label for="size">Size</label><input type="text" id="size" maxlength="60" placeholder="e.g. 9 in tall"></div>
+          </div>
+          <div class="row2">
+            <div><label for="madeBy">Made by (artisan or group)</label><input type="text" id="madeBy" maxlength="80" placeholder="e.g. Lakshmi Pottery Group"></div>
+            <div><label for="region">Region or village</label><input type="text" id="region" maxlength="60" placeholder="e.g. Kutch"></div>
+          </div>
+          <label for="care">Care instructions</label>
+          <input type="text" id="care" maxlength="160" placeholder="e.g. Wipe with a dry cloth">
+          <label for="prep">Days to make (0 if ready to ship)</label>
+          <input type="number" id="prep" min="0" max="60" step="1" value="0">
+          <div class="hint">If you make it after the order, enter the days. Customers will see "Made to order" and cannot pick an earlier delivery date.</div>
+          <label>Good for these occasions (optional)</label>
+          <div class="occs" id="occs"></div>
           <label for="file">Photos (up to 6)</label>
           <input type="file" id="file" accept="image/*" multiple>
           <div class="hint">Add one or more photos. The first one is the cover shown on the shop page. Large photos are shrunk automatically.</div>
@@ -142,6 +157,9 @@
           <div class="hint">Country code first, digits only, no + or spaces. India example: 919876543210</div>
           <label for="note">Note shown to customers</label>
           <input type="text" id="note" maxlength="200">
+          <label for="hnote">Handmade note (shown on every gift page)</label>
+          <input type="text" id="hnote" maxlength="200" placeholder="Each piece is handmade, so small variations are part of its charm.">
+          <div class="hint">Leave empty to hide it.</div>
           <label for="lead">Days you need to prepare an order</label>
           <input type="number" id="lead" min="0" max="30" step="1" value="1">
           <div class="hint">Customers cannot choose a delivery date earlier than this. 1 means from tomorrow.</div>
@@ -166,7 +184,11 @@
 <script>
 const $ = s => document.querySelector(s);
 const esc = MU.esc, money = MU.money;
-const DEFAULT_CATS = ['Birthday', 'Anniversary', 'Wedding', 'Baby & Kids', 'Festival', 'Personalised', 'Home Décor', 'Hampers & Chocolates'];
+const DEFAULT_CATS = ['Pottery & Terracotta', 'Wood & Bamboo', 'Textiles & Handloom', 'Metal & Brass', 'Paintings & Folk Art', 'Jewellery', 'Home Décor', 'Other crafts'];
+const OCCASIONS = ['Birthday', 'Anniversary', 'Wedding', 'Festival', 'Housewarming', 'Baby & Kids', 'Thank you'];
+$('#occs').innerHTML = OCCASIONS.map(o => '<label><input type="checkbox" value="' + o + '"> ' + o + '</label>').join('');
+const getOccs = () => [...document.querySelectorAll('#occs input:checked')].map(x => x.value);
+const setOccs = arr => document.querySelectorAll('#occs input').forEach(x => x.checked = (arr || []).includes(x.value));
 const MAX_PHOTOS = 6;
 let products = [], orders = [], photos = [], ofilter = 'new', timer = null;
 
@@ -214,7 +236,7 @@ async function loadGifts() {
     const pill = n === 0 ? '<span class="pill off">Sold out</span>' : n <= 3 ? '<span class="pill low">Low stock</span>' : '<span class="pill">In stock</span>';
     return '<div class="item"><img src="' + esc(img[0] || '') + '" alt="">' +
       '<div><div class="t">' + esc(p.name) + pill + '</div>' +
-      '<div class="s">' + esc(p.category) + ' · ' + money(p.price) + ' · ' + (img.length || 0) + ' photo' + (img.length === 1 ? '' : 's') + (p.personalise ? ' · ✍ personalised' : '') + (p.featured ? ' · ⭐ best seller' : '') + '</div></div>' +
+      '<div class="s">' + esc(p.category) + ' · ' + money(p.price) + ' · ' + (img.length || 0) + ' photo' + (img.length === 1 ? '' : 's') + (Number(p.prep_days) > 0 ? ' · made to order' : '') + (p.personalise ? ' · ✍ personalised' : '') + (p.featured ? ' · ⭐ best seller' : '') + '</div></div>' +
       '<div class="b"><div class="stepper"><button class="btn btn-s" data-adj="-1" data-id="' + id + '" aria-label="Reduce stock by 1"' + (n === 0 ? ' disabled' : '') + '>−</button>' +
       '<span class="stk" title="Stock">' + n + '</span>' +
       '<button class="btn btn-s" data-adj="1" data-id="' + id + '" aria-label="Increase stock by 1">+</button></div>' +
@@ -225,7 +247,7 @@ async function loadGifts() {
 }
 async function loadSettings() {
   const s = await MU.getSettings();
-  $('#wa').value = s.whatsapp || ''; $('#note').value = s.note || '';
+  $('#wa').value = s.whatsapp || ''; $('#note').value = s.note || ''; $('#hnote').value = s.handmade_note || '';
   $('#lead').value = s.lead_days !== undefined && s.lead_days !== '' ? s.lead_days : 1;
   $('#zonesOnly').checked = String(s.zones_only) === '1';
   $('#about').value = s.about || ''; $('#delivery').value = s.delivery || ''; $('#insta').value = s.instagram || '';
@@ -254,7 +276,7 @@ $('#pers').onchange = () => { $('#persBox').style.display = $('#pers').checked ?
 function resetForm() {
   $('#form').reset(); $('#pid').value = ''; photos = []; renderPhotos();
   $('#formTitle').textContent = 'Add a gift'; $('#cancel').style.display = 'none';
-  $('#stockIn').value = 1; $('#persBox').style.display = 'none'; $('#featured').checked = false;
+  $('#stockIn').value = 1; $('#persBox').style.display = 'none'; $('#featured').checked = false; $('#prep').value = 0; setOccs([]);
 }
 $('#cancel').onclick = resetForm;
 
@@ -271,6 +293,9 @@ $('#form').onsubmit = e => {
         id: $('#pid').value || undefined,
         name: $('#name').value.trim(), category: $('#category').value.trim(),
         price: Number($('#price').value), description: $('#desc').value.trim(),
+        material: $('#material').value.trim() || null, size: $('#size').value.trim() || null, made_by: $('#madeBy').value.trim() || null,
+        region: $('#region').value.trim() || null, care: $('#care').value.trim() || null,
+        prep_days: Math.min(60, Math.max(0, Math.floor(Number($('#prep').value) || 0))), occasions: getOccs(),
         image_url: urls[0] || null, images: urls,
         stock: Math.max(0, Math.floor(Number($('#stockIn').value) || 0)),
         featured: $('#featured').checked,
@@ -289,6 +314,8 @@ $('#list').onclick = e => {
     const p = find(b.dataset.edit); if (!p) return;
     $('#pid').value = p.id; $('#name').value = p.name; $('#price').value = p.price;
     $('#category').value = p.category; $('#desc').value = p.description || '';
+    $('#material').value = p.material || ''; $('#size').value = p.size || ''; $('#madeBy').value = p.made_by || ''; $('#region').value = p.region || ''; $('#care').value = p.care || '';
+    $('#prep').value = Number(p.prep_days) || 0; setOccs(p.occasions);
     $('#stockIn').value = MU.stockOf(p);
     $('#featured').checked = !!p.featured; $('#pers').checked = !!p.personalise; $('#persLabel').value = p.personalise_label || '';
     $('#persBox').style.display = p.personalise ? '' : 'none';
@@ -438,7 +465,7 @@ $('#sform').onsubmit = e => {
     const insta = $('#insta').value.trim();
     if (insta && !/^https?:\/\//i.test(insta)) throw new Error('The Instagram link must start with https://');
     await MU.saveSettings({
-      whatsapp: wa, note: $('#note').value.trim(),
+      whatsapp: wa, note: $('#note').value.trim(), handmade_note: $('#hnote').value.trim(),
       lead_days: String(Math.min(30, Math.max(0, Math.floor(Number($('#lead').value) || 0)))),
       about: $('#about').value.trim(), delivery: $('#delivery').value.trim(), instagram: insta
     });

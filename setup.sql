@@ -13,6 +13,13 @@ create table if not exists public.products (
   personalise boolean not null default false,
   personalise_label text,
   featured boolean not null default false,
+  material text,
+  made_by text,
+  region text,
+  size text,
+  care text,
+  prep_days integer not null default 0 check (prep_days >= 0),
+  occasions text[] not null default '{}',
   created_at timestamptz not null default now()
 );
 
@@ -52,7 +59,8 @@ create policy "admin delete gift photos" on storage.objects for delete to authen
 -- Starting settings. Change the number later in Admin > Settings.
 insert into public.settings (key, value) values
   ('whatsapp', '919999999999'),
-  ('note', 'Delivery and payment details will be confirmed with you on WhatsApp.')
+  ('note', 'Delivery and payment details will be confirmed with you on WhatsApp.'),
+  ('handmade_note', 'Each piece is handmade, so small variations are part of its charm.')
 on conflict (key) do nothing;
 
 -- Orders (placed from the shop, managed in the admin page)

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ManaUpahar | Handcrafted Gifts & Artisan Treasures</title>
-<meta name="description" content="Discover handcrafted gifts, artisan home décor, thoughtful keepsakes and handmade treasures. Order directly on WhatsApp.">
+<title>ManaUpahar – Handcrafted Gifts That Carry a Memory</title>
+<meta name="description" content="Handmade gifts crafted by skilled artisans: pottery, wood, textiles, brass and folk art. Pick your gift and order on WhatsApp.">
 <meta name="theme-color" content="#f97316">
 <link rel="icon" href="favicon.png">
 <link rel="stylesheet" href="styles.css">
@@ -17,11 +17,10 @@
 </div></div>
 
 <section class="hero"><div class="container">
-  <p class="eyebrow">HANDMADE WITH HEART · ROOTED IN TRADITION</p>
-  <h1>Gifts with a <span>Human Touch</span></h1>
-  <p>Explore meaningful handmade treasures crafted by skilled artisans — from earthy home décor to personal keepsakes made to be cherished.</p>
-  <div class="search"><input id="q" type="search" placeholder="Search handcrafted gifts…" aria-label="Search gifts"></div>
-  <div class="how"><span>Made by artisans</span><span>Thoughtful, one-of-a-kind finds</span><span>Easy WhatsApp ordering</span></div>
+  <h1>Handcrafted Gifts That <span>Carry a Memory</span></h1>
+  <p>Every piece is made by hand by skilled artisans. Choose a gift and place your order directly on WhatsApp.</p>
+  <div class="search"><input id="q" type="search" placeholder="Search handmade gifts…" aria-label="Search handmade gifts"></div>
+  <div class="how"><span>Handmade by artisans</span><span>Carefully packed</span><span>Order on WhatsApp</span></div>
 </div></section>
 
 <main class="container">
@@ -31,6 +30,7 @@
       <option value="rec">Recommended</option><option value="new">Newest first</option>
       <option value="low">Price: low to high</option><option value="high">Price: high to low</option>
     </select>
+    <select id="occ" aria-label="Occasion"><option value="all">Any occasion</option></select>
     <select id="budget" aria-label="Budget">
       <option value="all">Any budget</option><option value="0-500">Under ₹500</option><option value="500-1000">₹500 – ₹1,000</option>
       <option value="1000-2000">₹1,000 – ₹2,000</option><option value="2000-">Above ₹2,000</option>
@@ -41,7 +41,7 @@
 
 <footer class="foot">
   <div class="container" id="footGrid"></div>
-  <strong>ManaUpahar</strong> – Handcrafted gifts, made meaningful<br>
+  <strong>ManaUpahar</strong> – Where Every Gift Carries a Memory<br>
   <span id="footNote"></span>
 </footer>
 
@@ -59,6 +59,8 @@
     <h2 id="mName" style="margin:0;color:var(--navy)"></h2>
     <div class="price" id="mPrice"></div>
     <p id="mDesc" style="margin:0;color:var(--muted)"></p>
+    <dl class="facts" id="mFacts"></dl>
+    <p class="hm" id="mHandmade"></p>
     <div class="note-field" id="mNoteBox" style="display:none">
       <label for="mNote" id="mNoteLabel">Personalise</label>
       <textarea id="mNote" maxlength="200" placeholder="Type here (optional)"></textarea>
@@ -91,7 +93,7 @@ const $ = s => document.querySelector(s);
 const esc = MU.esc, money = MU.money;
 let addons = [], zones = [], chosen = new Set(), pincode = '';
 try { chosen = new Set(JSON.parse(localStorage.getItem('mu_addons') || '[]').map(String)); pincode = localStorage.getItem('mu_pin') || ''; } catch (e) {}
-let products = [], settings = {}, cat = 'All', term = '', sortBy = 'rec', budget = 'all', deliveryDate = '';
+let occasion = 'all', products = [], settings = {}, cat = 'All', term = '', sortBy = 'rec', budget = 'all', deliveryDate = '';
 try { deliveryDate = localStorage.getItem('mu_date') || ''; } catch (e) {}
 let cart = {};
 try {
@@ -117,14 +119,25 @@ const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.get
 function leadDays() { const n = Number(settings.lead_days); return settings.lead_days !== undefined && settings.lead_days !== '' && !isNaN(n) ? Math.max(0, n) : 1; }
 function dateFrom(days) { const d = new Date(); d.setDate(d.getDate() + days); return ymd(d); }
 function fmtDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); }
+// Days needed before delivery: your general preparation time, or longer if a gift in the basket is made to order
+function neededDays(es) { return Math.max(leadDays(), ...es.map(e => Number(e.p.prep_days) || 0)); }
+const modalBasket = () => viewing ? [{ p: viewing, q: 1 }] : [];
 function syncDates() {
   if (deliveryDate && deliveryDate < dateFrom(leadDays())) deliveryDate = '';
-  document.querySelectorAll('[data-date]').forEach(el => { el.min = dateFrom(leadDays()); el.max = dateFrom(180); el.value = deliveryDate; });
+  document.querySelectorAll('[data-date]').forEach(el => {
+    el.min = dateFrom(neededDays(el.id[0] === 'm' ? modalBasket() : cartEntries())); el.max = dateFrom(180); el.value = deliveryDate;
+  });
 }
-function onDate(v) {
-  if (v && v < dateFrom(leadDays())) { toast('We need at least ' + leadDays() + ' day' + (leadDays() === 1 ? '' : 's') + ' to prepare. Please pick a later date.'); v = ''; }
+function onDate(v, days) {
+  if (v && v < dateFrom(days)) { toast('These gifts need at least ' + days + ' day' + (days === 1 ? '' : 's') + ' to prepare. Please pick a later date.'); v = ''; }
   deliveryDate = v; try { localStorage.setItem('mu_date', v); } catch (e) {}
   syncDates();
+}
+function factsHTML(p) {
+  const n = Number(p.prep_days) || 0;
+  const rows = [['Material', p.material], ['Made by', [p.made_by, p.region].filter(Boolean).join(', ')], ['Size', p.size], ['Care', p.care],
+    ['Availability', n > 0 ? 'Made to order · ready in ' + n + ' day' + (n === 1 ? '' : 's') : 'Ready to ship']].filter(r => r[1]);
+  return rows.map(r => '<dt>' + r[0] + '</dt><dd>' + esc(r[1]) + '</dd>').join('');
 }
 function noteLabel(p) { return p.personalise_label || 'Personalisation'; }
 
@@ -203,6 +216,7 @@ function placeOrder(es, fromCart) {
   if (T.del && T.del.status === 'ok') items.push({ id: 'delivery', kind: 'delivery', name: 'Delivery – ' + T.del.z.label + ' (' + pincode + ')' + (T.del.free ? ' free' : ''), price: T.charge, qty: 1 });
   else if (T.del && T.del.status === 'unknown') items.push({ id: 'delivery', kind: 'delivery', name: 'Delivery – charge to be confirmed (' + pincode + ')', price: 0, qty: 1 });
   const total = T.total, date = deliveryDate || '';
+  if (date && date < dateFrom(neededDays(es))) { toast('These gifts need ' + neededDays(es) + ' days to prepare. Please pick a delivery date of ' + fmtDate(dateFrom(neededDays(es))) + ' or later.'); return; }
   const ref = MU.genRef();
   const lines = [];
   es.forEach((e, i) => {
@@ -250,7 +264,8 @@ function renderGrid() {
   const price = p => Number(p.price) || 0, newest = (a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''));
   const cmp = { rec: (a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0), new: newest, low: (a, b) => price(a) - price(b), high: (a, b) => price(b) - price(a) }[sortBy];
   const list = products.map((p, i) => [p, i])
-    .filter(([p]) => (cat === 'All' || p.category === cat) && inBudget(p) && (!t || (p.name + ' ' + (p.description || '') + ' ' + p.category).toLowerCase().includes(t)))
+    .filter(([p]) => (cat === 'All' || p.category === cat) && (occasion === 'all' || (p.occasions || []).includes(occasion)) && inBudget(p) &&
+      (!t || [p.name, p.description, p.category, p.material, p.made_by, p.region, (p.occasions || []).join(' ')].join(' ').toLowerCase().includes(t)))
     .sort((x, y) => ((MU.stockOf(x[0]) === 0) - (MU.stockOf(y[0]) === 0)) || cmp(x[0], y[0]) || x[1] - y[1]).map(x => x[0]);
   if (!list.length) { $('#grid').innerHTML = '<div class="empty">No gifts found here yet. Try another category or budget.</div>'; return; }
   $('#grid').innerHTML = list.map(p => {
@@ -265,7 +280,9 @@ function renderGrid() {
       '<img loading="lazy" src="' + esc(cover(p)) + '" alt="' + esc(p.name) + '">' +
       '<span class="tag">' + esc(p.category) + '</span>' + badges +
       (out ? '<div class="sold">SOLD OUT</div>' : (left <= 3 ? '<span class="low-tag">Only ' + left + ' left</span>' : '')) + '</div>' +
-      '<div class="body"><h3>' + esc(p.name) + '</h3><div class="price">' + money(p.price) + '</div>' +
+      '<div class="body"><h3>' + esc(p.name) + '</h3>' +
+      ((p.made_by || Number(p.prep_days) > 0) ? '<div class="by">' + (p.made_by ? 'by ' + esc(p.made_by) : '') + (p.made_by && Number(p.prep_days) > 0 ? ' · ' : '') + (Number(p.prep_days) > 0 ? 'Made to order' : '') + '</div>' : '') +
+      '<div class="price">' + money(p.price) + '</div>' +
       (p.personalise && !out ? '<div class="pers">✍ Can be personalised</div>' : '') +
       '<div class="actions">' + buttons + '</div></div></article>';
   }).join('');
@@ -285,6 +302,7 @@ function renderCart() {
     '<div class="total"><span>Total</span><span>' + money(T.total) + '</span></div>' : '<div class="total"><span>Total</span><span>₹0</span></div>';
   document.querySelectorAll('[data-pinstat]').forEach(el => el.textContent = deliveryText(T, T.sub));
   $('#send').disabled = !T.qty || T.blocked;
+  syncDates();
   $('#items').innerHTML = (es.length ? es.map(e => { const id = esc(e.p.id); return '<div class="line"><img src="' + esc(cover(e.p)) + '" alt="">' +
     '<div><div class="n">' + esc(e.p.name) + '</div><div class="qty"><button data-dec="' + id + '">−</button><span>' + e.q + '</span><button data-inc="' + id + '"' + (e.q >= MU.stockOf(e.p) ? ' disabled title="No more in stock"' : '') + '>+</button></div>' +
     (e.p.personalise ? '<input class="line-note" data-note="' + id + '" maxlength="200" value="' + esc(e.note) + '" placeholder="' + esc(noteLabel(e.p)) + '">' : '') + '</div>' +
@@ -317,6 +335,8 @@ function view(id) {
   $('#thumbs').innerHTML = imgs.length > 1 ? imgs.map((u, k) => '<img src="' + esc(u) + '" alt="Photo ' + (k + 1) + '" data-thumb="' + k + '">').join('') : '';
   showPhoto(0);
   $('#mName').textContent = p.name; $('#mPrice').textContent = money(p.price); $('#mDesc').textContent = p.description || '';
+  $('#mFacts').innerHTML = factsHTML(p);
+  $('#mHandmade').textContent = settings.handmade_note || ''; $('#mHandmade').style.display = settings.handmade_note ? '' : 'none';
   const out = MU.stockOf(p) === 0;
   $('#mNoteBox').style.display = p.personalise && !out ? '' : 'none';
   $('#mNoteLabel').textContent = '✍ ' + noteLabel(p) + ' (optional)';
@@ -324,7 +344,7 @@ function view(id) {
   $('#mOpts').style.display = out ? 'none' : '';
   $('#mAdd').disabled = out;
   $('#mOrder').textContent = out ? 'Sold out' : 'Order on WhatsApp';
-  renderModalSum();
+  renderModalSum(); syncDates();
   openEl($('#modal'));
   try { history.replaceState(null, '', '?gift=' + encodeURIComponent(p.id)); } catch (e) {}
 }
@@ -351,10 +371,11 @@ $('#mOrder').onclick = () => { if (viewing && MU.stockOf(viewing)) placeOrder([{
 $('#sentX').onclick = () => $('#sentBar').classList.remove('show');
 $('#send').onclick = () => placeOrder(cartEntries(), true);
 $('#sort').onchange = e => { sortBy = e.target.value; renderGrid(); };
+$('#occ').onchange = e => { occasion = e.target.value; renderGrid(); };
 $('#budget').onchange = e => { budget = e.target.value; renderGrid(); };
 document.addEventListener('change', e => {
   const t = e.target;
-  if (t.matches && t.matches('[data-date]')) onDate(t.value);
+  if (t.matches && t.matches('[data-date]')) onDate(t.value, neededDays(t.id[0] === 'm' ? modalBasket() : cartEntries()));
   else if (t.dataset && 'addon' in t.dataset) {
     t.checked ? chosen.add(String(t.dataset.addon)) : chosen.delete(String(t.dataset.addon));
     document.querySelectorAll('[data-addon="' + t.dataset.addon + '"]').forEach(x => x.checked = t.checked);
@@ -373,7 +394,7 @@ document.addEventListener('input', e => {
 });
 $('#mShare').onclick = async () => {
   if (!viewing) return;
-  const url = shareUrl(viewing.id), data = { title: viewing.name + ' – ManaUpahar Handmade Gifts', text: 'Discover this handcrafted treasure: ' + viewing.name + ' (' + money(viewing.price) + ')', url };
+  const url = shareUrl(viewing.id), data = { title: viewing.name + ' – ManaUpahar', text: 'Look at this gift: ' + viewing.name + ' (' + money(viewing.price) + ')', url };
   try { if (navigator.share) { await navigator.share(data); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (e) { window.prompt('Copy this link', url); }
 };
@@ -382,11 +403,11 @@ function renderFooter() {
   const cols = [];
   if (settings.about) cols.push('<div><h4>About us</h4><p>' + esc(settings.about) + '</p></div>');
   if (settings.delivery) cols.push('<div><h4>Delivery &amp; returns</h4><p>' + esc(settings.delivery) + '</p></div>');
-  const links = ['<a href="' + esc(waLink('Hello ManaUpahar! I have a question about your handcrafted gifts.')) + '" target="_blank" rel="noopener">Chat on WhatsApp</a>'];
+  const links = ['<a href="' + esc(waLink('Hello ManaUpahar! I have a question about your gifts.')) + '" target="_blank" rel="noopener">Chat on WhatsApp</a>'];
   if (/^https?:\/\//i.test(settings.instagram || '')) links.push('<a href="' + esc(settings.instagram) + '" target="_blank" rel="noopener">Instagram</a>');
   cols.push('<div><h4>Contact</h4><p>' + links.join('\n') + '</p></div>');
   $('#footGrid').innerHTML = cols.join('');
-  $('#waFloat').href = waLink('Hello ManaUpahar! I have a question about your handcrafted gifts.');
+  $('#waFloat').href = waLink('Hello ManaUpahar! I have a question about your gifts.');
 }
 
 (async function init() {
@@ -403,6 +424,9 @@ function renderFooter() {
   }
   $('#note').textContent = settings.note || '';
   $('#footNote').textContent = settings.note || '';
+  const occs = [...new Set(products.flatMap(p => p.occasions || []))].sort();
+  $('#occ').innerHTML = '<option value="all">Any occasion</option>' + occs.map(o => '<option>' + esc(o) + '</option>').join('');
+  $('#occ').style.display = occs.length ? '' : 'none';
   renderCats(); renderGrid(); renderOptions(); renderCart(); renderFooter();
   const g = new URLSearchParams(location.search).get('gift');
   if (g && byId(g)) view(g);

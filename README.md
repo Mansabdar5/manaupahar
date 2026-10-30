@@ -1,4 +1,4 @@
-# ManaUpahar – Handicraft Gift Shop
+# ManaUpahar – handicraft gift shop with WhatsApp ordering
 
 - **Shop (customers):** `yoursite.vercel.app`
 - **Admin (you):** `yoursite.vercel.app/admin` – add gifts, photos, prices, change WhatsApp number
@@ -41,12 +41,14 @@ Already live? In Supabase → **SQL Editor** → **New query**, paste and **Run*
 2. `upgrade-v3.sql` (multiple photos, personalisation, orders)
 3. `upgrade-v4.sql` (best sellers, delivery dates)
 4. `upgrade-v5.sql` (add-ons, delivery charges by pincode)
+5. `upgrade-v6.sql` (handicraft details and occasions)
 
 Run the SQL **before** uploading the new files to GitHub. Then upload the changed files and Vercel republishes by itself. Keep your own `config.js`.
 
 ## Daily use
 1. Open `yoursite.vercel.app/admin` and log in.
-2. **Gifts → Add a gift:** name, price, category, stock and **up to 6 photos**. Use **Make cover** to choose the main photo. It appears on the shop immediately.
+2. **Gifts → Add a gift:** name, price, **category (the craft)**, stock and **up to 6 photos**. Then fill the handicraft details: material, size, who made it and where, care instructions, and **days to make**. Leave days at 0 for ready-to-ship pieces. If you make it after the order, enter the days: customers see "Made to order" and cannot pick an earlier delivery date. Tick the occasions it suits (Birthday, Wedding, Festival ...) so customers can filter by occasion.
+   Categories are now crafts, for example Pottery & Terracotta, Wood & Bamboo, Textiles & Handloom, Metal & Brass, Paintings & Folk Art. Type any new one you need. Use **Make cover** to choose the main photo. It appears on the shop immediately.
    Tick **Customers can personalise** to show a box where the customer types a name or message (you choose the question, for example "Name to print on the frame"). It is added to their WhatsApp order.
 3. **Stock:** every gift has a stock number. Use **−** when you sell one and **+** when you restock, or type the exact number under **Edit**. At **0** the shop shows **SOLD OUT** on the photo and the order buttons are disabled. With 3 or fewer left, customers see "Only N left", and they cannot add more to the cart than you have.
 4. **Orders tab:** when a customer taps the WhatsApp button, the order appears here as **New** with a reference such as `MU-AB12C` (the same reference is in their WhatsApp message). After you agree the order on WhatsApp, press **Confirm**: the stock goes down automatically. Then **Mark delivered** when done. **Cancel** puts the stock back.
@@ -57,10 +59,13 @@ Run the SQL **before** uploading the new files to GitHub. Then upload the change
    - **Delivery charges by pincode:** add one area for each charge, for example "Within the city, ₹60, free above ₹1,500". List pincodes separated by commas. A full 6-digit pincode matches exactly. 3 to 5 digits (like `500`) cover every pincode starting with them, and the longest match wins.
    - Tick **Only deliver to the pincodes listed** if you do not want orders from elsewhere. Otherwise, unlisted pincodes see "we will confirm the delivery charge on WhatsApp".
 8. **Edit / Delete** gifts from the list below.
-9. **Settings:** WhatsApp number, how many days you need to prepare an order (customers cannot pick an earlier delivery date), and the About us, Delivery and returns and Instagram details shown in the shop footer.
+9. **Settings:** WhatsApp number, the handmade note shown on every gift page (clear it to hide it), how many days you need to prepare an order (customers cannot pick an earlier delivery date), and the About us, Delivery and returns and Instagram details shown in the shop footer.
 
 ## How customers order
 Customers browse by category, tap a gift to see all its photos, type their personalisation if offered, tap **Order now** (one gift) or **Add to cart** for several, then **Send order on WhatsApp**. WhatsApp opens with the gift list and total already typed; they add name, address and delivery date and send. You confirm payment and delivery in the chat.
+
+## Moving an existing shop to handicrafts
+After running `upgrade-v6.sql`, gifts that used Birthday, Anniversary, Wedding, Festival or Baby & Kids as their category keep that as an **occasion**. Open each gift in admin and change its category to its craft. Delete gifts that are not handicrafts.
 
 ## Extras customers get
 - A green **Chat with us** button on every page for questions that are not orders.
