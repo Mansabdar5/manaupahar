@@ -113,6 +113,17 @@
     genRef: () => 'MU-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
     stockOf: p => Math.max(0, Number(p && p.stock != null ? p.stock : (p && p.in_stock === false ? 0 : 1)) || 0),
     money: n => '₹' + Number(n || 0).toLocaleString('en-IN'),
+    // Recently viewed items helper
+    getRecentlyViewed: () => {
+      try { return JSON.parse(localStorage.getItem('mu_recently_viewed') || '[]'); } catch (e) { return []; }
+    },
+    addRecentlyViewed: (id) => {
+      try {
+        let list = MU.getRecentlyViewed().filter(x => String(x) !== String(id));
+        list.unshift(String(id));
+        localStorage.setItem('mu_recently_viewed', JSON.stringify(list.slice(0, 6)));
+      } catch (e) {}
+    },
 
     // Shows logo.png if you add it to the folder; otherwise a text logo in the brand colours.
     logoHTML: function () {

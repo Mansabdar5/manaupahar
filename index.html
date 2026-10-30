@@ -113,13 +113,18 @@
     </div>
     <div class="opts" id="mOpts"></div>
     <div class="sumline" id="mSum"></div>
+    <section class="related-wrap" id="recentWrap" hidden style="margin-bottom:16px">
+      <h3>Recently viewed</h3>
+      <div class="related-grid" id="recentGrid"></div>
+    </section>
     <section class="related-wrap" id="relatedWrap" hidden>
       <h3>You may also like</h3>
       <div class="related-grid" id="relatedGrid"></div>
     </section>
-    <div class="actions" style="margin-top:auto">
-      <button class="btn btn-o" id="mAdd">Add to cart</button>
-      <button class="btn btn-g" id="mOrder">Order on WhatsApp</button>
+    <div class="actions" style="margin-top:auto;display:flex;flex-wrap:wrap;gap:8px">
+      <button class="btn btn-o" id="mAdd" style="flex:1">Add to cart</button>
+      <button class="btn btn-g" id="mOrder" style="flex:1">Order on WhatsApp</button>
+      <button class="btn btn-s" id="mAskWA" style="width:100%;margin-top:4px">💬 Ask a question about this item</button>
     </div>
   </div>
 </div>
@@ -402,6 +407,15 @@ function showPhoto(i) {
   $('#mImg').src = imgs[i] || '';
   document.querySelectorAll('#thumbs img').forEach((t, k) => t.classList.toggle('on', k === i));
 }
+function renderRecentlyViewed() {
+  if (!viewing) return;
+  const recentIds = MU.getRecentlyViewed().filter(id => String(id) !== String(viewing.id));
+  const recentProds = recentIds.map(id => byId(id)).filter(Boolean).slice(0, 3);
+  if (!recentProds.length) { $('#recentWrap').hidden = true; $('#recentGrid').innerHTML = ''; return; }
+  $('#recentWrap').hidden = false;
+  $('#recentGrid').innerHTML = recentProds.map(x => '<button class="related-card" type="button" data-view="' + esc(x.id) + '"><img src="' + esc(cover(x)) + '" alt="' + esc(x.name) + '"><span><b>' + esc(x.name) + '</b><small>' + money(x.price) + '</small></span></button>').join('');
+}
+
 function renderRelated(p) {
   const related = products.filter(x => String(x.id) !== String(p.id) && x.category === p.category && MU.stockOf(x) > 0).slice(0, 3);
   if (!related.length) { $('#relatedWrap').hidden = true; $('#relatedGrid').innerHTML = ''; return; }
@@ -451,6 +465,8 @@ $('#reviewForm').onsubmit = async e => {
 
 function view(id) {
   const p = byId(id); if (!p) return; viewing = p;
+  MU.addRecentlyViewed(p.id);
+  renderRecentlyViewed();
   const imgs = MU.imagesOf(p);
   $('#mImg').alt = p.name; $('#mCat').textContent = p.category;
   $('#thumbs').innerHTML = imgs.length > 1 ? imgs.map((u, k) => '<img src="' + esc(u) + '" alt="Photo ' + (k + 1) + '" data-thumb="' + k + '">').join('') : '';
@@ -497,6 +513,11 @@ $('#mImg').addEventListener('click', () => { const z = $('#mImg').classList.togg
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll(); });
 $('#mAdd').onclick = () => { if (viewing) { change(viewing.id, 1, $('#mNote').value.trim()); closeAll(); openEl($('#drawer')); } };
 $('#mOrder').onclick = () => { if (viewing && MU.stockOf(viewing)) placeOrder([{ p: viewing, q: 1, note: $('#mNote').value.trim() }], false); };
+$('#mAskWA').onclick = () => {
+  if (!viewing) return;
+  const text = 'Hello ManaUpahar! I have a question about this gift:\n* ' + viewing.name + ' (' + money(viewing.price) + ')\nLink: ' + shareUrl(viewing.id);
+  window.open(waLink(text), '_blank', 'noopener');
+};
 $('#sentX').onclick = () => $('#sentBar').classList.remove('show');
 $('#send').onclick = () => placeOrder(cartEntries(), true);
 $('#sort').onchange = e => { sortBy = e.target.value; renderGrid(); };
