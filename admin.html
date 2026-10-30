@@ -167,6 +167,9 @@
           <div class="hint">Country code first, digits only, no + or spaces. India example: 919876543210</div>
           <label for="note">Note shown to customers</label>
           <input type="text" id="note" maxlength="200">
+          <label for="payInfo">Payment details (used in the confirmation message)</label>
+          <textarea id="payInfo" rows="3" maxlength="400" placeholder="e.g. Pay by UPI to manaupahar@upi, then send the screenshot here."></textarea>
+          <div class="hint">Shown only in the message you copy for a customer. Leave empty to skip it.</div>
           <label for="hnote">Handmade note (shown on every gift page)</label>
           <input type="text" id="hnote" maxlength="200" placeholder="Each piece is handmade, so small variations are part of its charm.">
           <div class="hint">Leave empty to hide it.</div>
@@ -258,7 +261,7 @@ async function loadGifts() {
 }
 async function loadSettings() {
   const s = await MU.getSettings();
-  $('#wa').value = s.whatsapp || ''; $('#note').value = s.note || ''; $('#hnote').value = s.handmade_note || '';
+  $('#wa').value = s.whatsapp || ''; $('#note').value = s.note || ''; $('#hnote').value = s.handmade_note || ''; $('#payInfo').value = s.payment_info || ''; payInfo = s.payment_info || '';
   $('#lead').value = s.lead_days !== undefined && s.lead_days !== '' ? s.lead_days : 1;
   $('#zonesOnly').checked = String(s.zones_only) === '1';
   $('#about').value = s.about || ''; $('#delivery').value = s.delivery || ''; $('#insta').value = s.instagram || '';
@@ -394,15 +397,29 @@ function renderOrders() {
       '<input data-tf="tracking_url" data-id="' + id + '" placeholder="Courier tracking link (optional, starts with https://)" maxlength="500" value="' + esc(o.tracking_url || '') + '">' +
       '<input data-tf="customer_note" data-id="' + id + '" placeholder="Short note the customer will see (optional)" maxlength="300" value="' + esc(o.customer_note || '') + '">' +
       '<div class="b"><button class="btn btn-p" data-savetrack="' + id + '">Save tracking details</button></div></details>';
-    const copyBtn = o.status === 'cancelled' ? '' : '<button class="btn btn-s" data-copymsg="' + id + '">📋 Copy update message</button>';
+    const copyBtn = o.status === 'cancelled' ? '' : (o.status === 'new' || o.status === 'confirmed') ? '<button class="btn btn-s" data-confirmmsg="' + id + '">📋 Copy confirmation message</button>' : '<button class="btn btn-s" data-copymsg="' + id + '">📋 Copy update message</button>';
     return '<div class="order"><div class="oh"><strong>' + esc(o.ref) + '</strong><span class="pill ' + cls + '" style="margin:0">' + label + '</span><span class="when">' + when + '</span></div>' +
       (o.delivery_date ? '<div class="s" style="font-weight:700;color:var(--navy)">📅 Deliver on ' + esc(o.delivery_date.split('-').reverse().join('/')) + '</div>' : '') +
       '<ul>' + items + '</ul><div class="ot">Total ' + money(o.total) + '</div><div class="b">' + btns + copyBtn + '</div>' + track + '</div>';
   }).join('') : '<div class="note">No ' + (ofilter === 'all' ? '' : ofilter + ' ') + 'orders yet.</div>';
 }
 $('#ofilter').onclick = e => { const b = e.target.closest('[data-of]'); if (b) { ofilter = b.dataset.of; renderOrders(); } };
+let payInfo = '';
 const trackLink = o => location.origin + '/track?ref=' + encodeURIComponent(o.ref);
 $('#olist').onclick = e => {
+  const cf = e.target.closest('[data-confirmmsg]');
+  if (cf) {
+    const o = orders.find(x => String(x.id) === String(cf.dataset.confirmmsg)); if (!o) return;
+    const lines = ['Hello! Thank you for your order with ManaUpahar 🎁', 'Order ref: ' + o.ref, ''];
+    (o.items || []).forEach(it => lines.push((it.kind === 'addon' ? '➕ ' : it.kind === 'delivery' ? '🚚 ' : '• ') + it.name + (it.kind === 'delivery' ? '' : ' × ' + it.qty)));
+    lines.push('', 'Total: ' + money(o.total));
+    if (o.delivery_date) lines.push('Delivery date: ' + o.delivery_date.split('-').reverse().join('/'));
+    if (payInfo) lines.push('', payInfo);
+    lines.push('', 'You can follow your order here: ' + trackLink(o));
+    const text = lines.join('\n');
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast('Message copied. Paste it in the customer\'s WhatsApp chat.'), () => window.prompt('Copy this message', text));
+    return;
+  }
   const sv = e.target.closest('[data-savetrack]'), cp = e.target.closest('[data-copymsg]');
   if (sv) {
     const id = sv.dataset.savetrack, f = {};
@@ -531,7 +548,7 @@ $('#sform').onsubmit = e => {
     const insta = $('#insta').value.trim();
     if (insta && !/^https?:\/\//i.test(insta)) throw new Error('The Instagram link must start with https://');
     await MU.saveSettings({
-      whatsapp: wa, note: $('#note').value.trim(), handmade_note: $('#hnote').value.trim(),
+      whatsapp: wa, note: $('#note').value.trim(), handmade_note: $('#hnote').value.trim(), payment_info: $('#payInfo').value.trim(),
       lead_days: String(Math.min(30, Math.max(0, Math.floor(Number($('#lead').value) || 0)))),
       about: $('#about').value.trim(), delivery: $('#delivery').value.trim(), instagram: insta
     });

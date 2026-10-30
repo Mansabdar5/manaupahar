@@ -59,7 +59,8 @@ Customers can follow their order at `yoursite.vercel.app/track`. They get there 
 For you, in **Admin → Orders**:
 - Move an order along with the buttons: **Confirm**, **Mark packed**, **Mark shipped**, **Mark delivered**. Stock goes down at Confirm and comes back if you cancel. Each step has a small back button if you tapped too early.
 - Open **Tracking details for the customer** to add the courier, tracking number, the courier's tracking link and a short note, then **Save tracking details**.
-- Press **Copy update message**, then paste it into that customer's WhatsApp chat. It has the status and the tracking link, so they can open the page whenever they like.
+- On **New** and **Confirmed** orders, press **Copy confirmation message**: it lists the items, total, delivery date, your payment details and the tracking link. Type your UPI ID or payment instructions once in **Settings → Payment details**. Paste the message into the customer's WhatsApp chat.
+- Later, press **Copy update message**, then paste it into that customer's WhatsApp chat. It has the status and the tracking link, so they can open the page whenever they like.
 
 Privacy: customers can look up one order at a time and only by its reference. The page shows item names and quantities, never prices, personalisation text or other orders. Run `upgrade-v9-order-tracking.sql` first; until then the Track page says tracking is not switched on yet and the shop keeps working.
 
