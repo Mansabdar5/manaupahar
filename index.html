@@ -74,20 +74,30 @@
 
 <div class="modal" id="modal" role="dialog" aria-modal="true">
   <button class="x" id="closeModal" aria-label="Close">×</button>
-  <div class="gallery"><img id="mImg" alt=""><div class="thumbs" id="thumbs"></div></div>
+  <div class="gallery">
+    <button class="zoom-btn" id="mZoom" type="button" aria-label="Zoom product image">⌕ Zoom</button>
+    <img id="mImg" alt="">
+    <div class="thumbs" id="thumbs"></div>
+  </div>
   <div class="info">
     <div class="mtop"><span class="note" id="mCat"></span><button class="share" id="mShare" type="button">🔗 Share</button></div>
     <h2 id="mName" style="margin:0;color:var(--navy)"></h2>
     <div class="price" id="mPrice"></div>
+    <div class="detail-badges" id="mBadges"></div>
     <p id="mDesc" style="margin:0;color:var(--muted)"></p>
     <dl class="facts" id="mFacts"></dl>
     <p class="hm" id="mHandmade"></p>
+    <div class="delivery-hint"><span>🚚</span><div><strong>Delivery made simple</strong><small>Enter your pincode below to check service availability and delivery charges. Preparation time is shown in product details.</small></div></div>
     <div class="note-field" id="mNoteBox" style="display:none">
       <label for="mNote" id="mNoteLabel">Personalise</label>
       <textarea id="mNote" maxlength="200" placeholder="Type here (optional)"></textarea>
     </div>
     <div class="opts" id="mOpts"></div>
     <div class="sumline" id="mSum"></div>
+    <section class="related-wrap" id="relatedWrap" hidden>
+      <h3>You may also like</h3>
+      <div class="related-grid" id="relatedGrid"></div>
+    </section>
     <div class="actions" style="margin-top:auto">
       <button class="btn btn-o" id="mAdd">Add to cart</button>
       <button class="btn btn-g" id="mOrder">Order on WhatsApp</button>
@@ -353,14 +363,24 @@ function showPhoto(i) {
   $('#mImg').src = imgs[i] || '';
   document.querySelectorAll('#thumbs img').forEach((t, k) => t.classList.toggle('on', k === i));
 }
+function renderRelated(p) {
+  const related = products.filter(x => String(x.id) !== String(p.id) && x.category === p.category && MU.stockOf(x) > 0).slice(0, 3);
+  if (!related.length) { $('#relatedWrap').hidden = true; $('#relatedGrid').innerHTML = ''; return; }
+  $('#relatedWrap').hidden = false;
+  $('#relatedGrid').innerHTML = related.map(x => '<button class="related-card" type="button" data-view="' + esc(x.id) + '"><img src="' + esc(cover(x)) + '" alt="' + esc(x.name) + '"><span><b>' + esc(x.name) + '</b><small>' + money(x.price) + '</small></span></button>').join('');
+}
 function view(id) {
   const p = byId(id); if (!p) return; viewing = p;
   const imgs = MU.imagesOf(p);
   $('#mImg').alt = p.name; $('#mCat').textContent = p.category;
   $('#thumbs').innerHTML = imgs.length > 1 ? imgs.map((u, k) => '<img src="' + esc(u) + '" alt="Photo ' + (k + 1) + '" data-thumb="' + k + '">').join('') : '';
   showPhoto(0);
+  $('#mImg').classList.remove('zoomed'); $('#mZoom').textContent = '⌕ Zoom';
   $('#mName').textContent = p.name; $('#mPrice').textContent = money(p.price); $('#mDesc').textContent = p.description || '';
+  const left = MU.stockOf(p);
+  $('#mBadges').innerHTML = '<span>✦ Handmade</span>' + (p.personalise ? '<span>✍ Personalisation available</span>' : '') + (left === 0 ? '<span class="detail-out">Currently unavailable</span>' : left <= 3 ? '<span class="detail-low">Only ' + left + ' left</span>' : '<span class="detail-stock">In stock</span>');
   $('#mFacts').innerHTML = factsHTML(p);
+  renderRelated(p);
   $('#mHandmade').textContent = settings.handmade_note || ''; $('#mHandmade').style.display = settings.handmade_note ? '' : 'none';
   const out = MU.stockOf(p) === 0;
   $('#mNoteBox').style.display = p.personalise && !out ? '' : 'none';
@@ -391,6 +411,8 @@ document.addEventListener('input', e => {
 $('#q').addEventListener('input', e => { term = e.target.value; finderTerms = []; renderGrid(); });
 $('#openCart').onclick = () => openEl($('#drawer'));
 $('#closeCart').onclick = $('#closeModal').onclick = $('#ov').onclick = closeAll;
+$('#mZoom').onclick = () => { const z = $('#mImg').classList.toggle('zoomed'); $('#mZoom').textContent = z ? '× Close zoom' : '⌕ Zoom'; };
+$('#mImg').addEventListener('click', () => { const z = $('#mImg').classList.toggle('zoomed'); $('#mZoom').textContent = z ? '× Close zoom' : '⌕ Zoom'; });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll(); });
 $('#mAdd').onclick = () => { if (viewing) { change(viewing.id, 1, $('#mNote').value.trim()); closeAll(); openEl($('#drawer')); } };
 $('#mOrder').onclick = () => { if (viewing && MU.stockOf(viewing)) placeOrder([{ p: viewing, q: 1, note: $('#mNote').value.trim() }], false); };
