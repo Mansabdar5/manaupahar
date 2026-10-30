@@ -43,12 +43,13 @@ Already live? In Supabase → **SQL Editor** → **New query**, paste and **Run*
 4. `upgrade-v5.sql` (add-ons, delivery charges by pincode)
 5. `upgrade-v6.sql` (handicraft details and occasions)
 6. `upgrade-v7-reviews.sql` (customer reviews with admin approval)
+7. `upgrade-v8-review-photos.sql` (customer photo reviews and private photo storage)
 
 Run the SQL **before** uploading the new files to GitHub. Then upload the changed files and Vercel republishes by itself. Keep your own `config.js`.
 
 ## Customer reviews
 
-Customers can submit a rating and review from a product detail window. Reviews stay pending until you approve them in **Admin → Reviews**. Only approved reviews appear publicly. For an existing Supabase site, run `upgrade-v7-reviews.sql` once before deploying this update. In demo mode, reviews are stored only in that browser.
+Customers can submit a rating and review from a product detail window. Reviews stay pending until you approve them in **Admin → Reviews**. Only approved reviews appear publicly. For an existing Supabase site, run `upgrade-v7-reviews.sql` once for text reviews, then `upgrade-v8-review-photos.sql` once to enable customer photo uploads. Customer photos are compressed to JPEG, limited to 5 MB before processing, stored in a private Supabase bucket, and shown to shoppers only after the linked review is approved. In demo mode, text reviews are stored only in that browser; photo uploads require the connected Supabase storage.
 
 ## Daily use
 1. Open `yoursite.vercel.app/admin` and log in.
@@ -91,3 +92,7 @@ The updated shop includes these additions and does not require a database migrat
 - **Admin new-order alerts:** in Admin → Orders, choose **Enable new-order notifications** and allow browser notifications. Keep the admin page open; it checks for new orders every 60 seconds. Use **Refresh orders** to check immediately. Browser notifications require a supported browser and secure HTTPS deployment.
 
 **Order history is not enabled yet.** The current WhatsApp-first flow does not collect a verified customer identity in the database, and public customers are intentionally blocked from reading orders by Supabase Row Level Security. A secure order-history feature needs a customer phone/email verification flow (preferably an OTP) and a server-side lookup that only returns that customer's orders. Do not loosen the orders table read policy to `anon` to make order history work; that would expose customer order data.
+
+## Customer photo reviews
+
+Customers can optionally attach one JPG, PNG or WebP photo (up to 5 MB) when submitting a review. The browser resizes and converts it to JPEG before upload. Photos are stored in the private `review-photos` Supabase bucket; shoppers can view them only after the review is approved. In **Admin → Reviews**, open the thumbnail to inspect the full-size photo, then approve or reject the review. Run `upgrade-v8-review-photos.sql` once on an existing Supabase project before deploying this version. Fresh installations get the bucket and policies from `setup.sql`.

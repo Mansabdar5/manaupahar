@@ -97,6 +97,10 @@
           <div><label for="reviewRating">Your rating</label><select id="reviewRating" required><option value="5">★★★★★ – Excellent</option><option value="4">★★★★☆ – Very good</option><option value="3">★★★☆☆ – Good</option><option value="2">★★☆☆☆ – Fair</option><option value="1">★☆☆☆☆ – Poor</option></select></div>
         </div>
         <label for="reviewText">Your review</label><textarea id="reviewText" rows="3" maxlength="500" minlength="10" required placeholder="What did you like about this gift? (10–500 characters)"></textarea>
+        <label for="reviewPhoto">Add a product photo (optional)</label>
+        <input id="reviewPhoto" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="reviewPhotoNote">
+        <div id="reviewPhotoPreview" class="review-photo-preview" hidden></div>
+        <small class="review-note" id="reviewPhotoNote">JPG, PNG or WebP · up to 5 MB. Photos are shown only after your review is approved.</small>
         <button class="btn btn-o" type="submit">Submit review</button>
         <small class="review-note">Reviews are checked by our team before appearing publicly.</small>
       </form>
@@ -387,24 +391,41 @@ function stars(n) { return '★'.repeat(Math.max(0, Math.min(5, Number(n) || 0))
 function renderReviews(list) {
   const count = list.length, avg = count ? list.reduce((a, r) => a + Number(r.rating || 0), 0) / count : 0;
   $('#reviewSummary').textContent = count ? stars(Math.round(avg)) + '  ' + avg.toFixed(1) + '/5 · ' + count + ' review' + (count === 1 ? '' : 's') : 'No reviews yet';
-  $('#reviewList').innerHTML = count ? list.map(r => '<article class="review-card"><div class="review-card-top"><strong>' + esc(r.customer_name) + '</strong><span class="review-stars" aria-label="' + Number(r.rating) + ' out of 5 stars">' + stars(r.rating) + '</span></div><p>' + esc(r.review_text) + '</p><small>' + (r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '') + '</small></article>').join('') : '<p class="review-empty">Be the first to share your experience with this gift.</p>';
+  $('#reviewList').innerHTML = count ? list.map(r => '<article class="review-card"><div class="review-card-top"><strong>' + esc(r.customer_name) + '</strong><span class="review-stars" aria-label="' + Number(r.rating) + ' out of 5 stars">' + stars(r.rating) + '</span></div><p>' + esc(r.review_text) + '</p>' + (r.photo_url ? '<img class="review-photo" src="' + esc(r.photo_url) + '" alt="Customer photo shared with this review" loading="lazy">' : '') + '<small>' + (r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '') + '</small></article>').join('') : '<p class="review-empty">Be the first to share your experience with this gift.</p>';
 }
 async function loadProductReviews(productId) {
   $('#reviewSummary').textContent = 'Loading reviews…'; $('#reviewList').innerHTML = '';
   try { renderReviews(await MU.reviews.list(productId, false)); }
   catch (e) { console.warn('Reviews could not be loaded:', e); $('#reviewSummary').textContent = 'Reviews are temporarily unavailable.'; $('#reviewList').innerHTML = ''; }
 }
+let reviewPhotoObjectUrl = '';
+$('#reviewPhoto').addEventListener('change', () => {
+  const file = $('#reviewPhoto').files && $('#reviewPhoto').files[0];
+  if (reviewPhotoObjectUrl) URL.revokeObjectURL(reviewPhotoObjectUrl);
+  reviewPhotoObjectUrl = '';
+  const preview = $('#reviewPhotoPreview'); preview.hidden = true; preview.innerHTML = '';
+  if (!file) return;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+    $('#reviewPhoto').value = ''; toast('Choose a JPG, PNG or WebP image smaller than 5 MB.'); return;
+  }
+  reviewPhotoObjectUrl = URL.createObjectURL(file);
+  preview.innerHTML = '<img src="' + esc(reviewPhotoObjectUrl) + '" alt="Selected review photo preview"><span>' + esc(file.name) + '</span>';
+  preview.hidden = false;
+});
 $('#reviewForm').onsubmit = async e => {
   e.preventDefault();
   if (!viewing) return;
-  const customer_name = $('#reviewName').value.trim(), review_text = $('#reviewText').value.trim(), rating = Number($('#reviewRating').value);
+  const customer_name = $('#reviewName').value.trim(), review_text = $('#reviewText').value.trim(), rating = Number($('#reviewRating').value), photo_file = $('#reviewPhoto').files && $('#reviewPhoto').files[0];
   if (customer_name.length < 2 || review_text.length < 10 || review_text.length > 500 || rating < 1 || rating > 5) { toast('Please enter your name and a review of at least 10 characters.'); return; }
-  const btn = $('#reviewForm button[type="submit"]'); btn.disabled = true;
+  const btn = $('#reviewForm button[type="submit"]'); btn.disabled = true; btn.textContent = photo_file ? 'Uploading photo…' : 'Submitting…';
   try {
-    await MU.reviews.submit({ product_id: viewing.id, customer_name, review_text, rating });
-    $('#reviewForm').reset(); toast('Thank you! Your review was submitted for approval.');
-  } catch (err) { console.error(err); toast('Could not submit your review. Please try again.'); }
-  finally { btn.disabled = false; }
+    await MU.reviews.submit({ product_id: viewing.id, customer_name, review_text, rating, photo_file });
+    $('#reviewForm').reset();
+    if (reviewPhotoObjectUrl) URL.revokeObjectURL(reviewPhotoObjectUrl);
+    reviewPhotoObjectUrl = ''; $('#reviewPhotoPreview').hidden = true; $('#reviewPhotoPreview').innerHTML = '';
+    toast('Thank you! Your review was submitted for approval.');
+  } catch (err) { console.error(err); toast(err && err.message ? err.message : 'Could not submit your review. Please try again.'); }
+  finally { btn.disabled = false; btn.textContent = 'Submit review'; }
 };
 
 function view(id) {

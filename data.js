@@ -173,11 +173,34 @@
         if (!includePending) q = q.eq('status', 'approved');
         const { data, error } = await q;
         if (error) throw error;
-        return data || [];
+        // The review-photo bucket is private. Generate short-lived URLs only for
+        // photos the current visitor is allowed to read (approved reviews publicly;
+        // pending reviews for the signed-in admin).
+        return await Promise.all((data || []).map(async row => {
+          if (!row.photo_path) return row;
+          try {
+            const { data: signed, error: signError } = await sb.storage.from('review-photos').createSignedUrl(row.photo_path, 3600);
+            if (signError) { console.warn('Review photo is not available:', signError.message); return row; }
+            return Object.assign({}, row, { photo_url: signed && signed.signedUrl ? signed.signedUrl : '' });
+          } catch (e) { console.warn('Review photo is not available:', e); return row; }
+        }));
       },
       async submit(r) {
         const row = { product_id: r.product_id, customer_name: String(r.customer_name || '').trim().slice(0, 70), rating: Math.max(1, Math.min(5, Number(r.rating) || 5)), review_text: String(r.review_text || '').trim().slice(0, 500), status: 'pending' };
         if (!row.customer_name || row.review_text.length < 10) throw new Error('Please provide your name and a review of at least 10 characters.');
+        if (r.photo_file) {
+          if (!live) throw new Error('Photo reviews are available after the website is connected to Supabase.');
+          const file = r.photo_file;
+          if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Please choose a JPG, PNG or WebP image.');
+          if (file.size > 5 * 1024 * 1024) throw new Error('Please choose an image smaller than 5 MB.');
+          const blob = await compress(file, 1200);
+          if (!blob) throw new Error('The selected photo could not be processed. Please try another image.');
+          const uuid = window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
+          const path = uuid + '.jpg';
+          const { error: uploadError } = await sb.storage.from('review-photos').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '3600', upsert: false });
+          if (uploadError) throw new Error('Photo upload failed: ' + uploadError.message);
+          row.photo_path = path;
+        }
         if (!live) {
           const rows = rd(K.r, []); rows.unshift(Object.assign({ id: 'r' + Date.now(), created_at: new Date().toISOString() }, row)); wr(K.r, rows); return;
         }

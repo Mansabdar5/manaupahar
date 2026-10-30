@@ -181,6 +181,7 @@ create table if not exists public.reviews (
   customer_name text not null check (char_length(customer_name) between 2 and 70),
   rating integer not null check (rating between 1 and 5),
   review_text text not null check (char_length(review_text) between 10 and 500),
+  photo_path text check (photo_path is null or photo_path ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jpg$'),
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   created_at timestamptz not null default now()
 );
@@ -193,3 +194,17 @@ drop policy if exists "Customers can submit pending reviews" on public.reviews;
 create policy "Customers can submit pending reviews" on public.reviews for insert to anon, authenticated with check (status = 'pending');
 drop policy if exists "Admin manages reviews" on public.reviews;
 create policy "Admin manages reviews" on public.reviews for all to authenticated using (true) with check (true);
+
+-- Private storage for customer review photos. Only approved photos are readable by shoppers.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('review-photos', 'review-photos', false, 5242880, array['image/jpeg'])
+on conflict (id) do update set public = false, file_size_limit = 5242880, allowed_mime_types = array['image/jpeg'];
+drop policy if exists "Customers can upload review photos" on storage.objects;
+create policy "Customers can upload review photos" on storage.objects for insert to anon, authenticated
+  with check (bucket_id = 'review-photos' and name ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jpg$');
+drop policy if exists "Approved review photos can be viewed" on storage.objects;
+create policy "Approved review photos can be viewed" on storage.objects for select to anon, authenticated
+  using (bucket_id = 'review-photos' and exists (
+    select 1 from public.reviews r where r.photo_path = storage.objects.name
+      and (r.status = 'approved' or auth.role() = 'authenticated')
+  ));
