@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Track your order – ManaUpahar</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#f97316">
+<link rel="icon" href="favicon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="topbar"><div class="container">
+  <a class="brand" href="/" id="brand" aria-label="ManaUpahar home" title="Go to homepage"></a>
+  <a class="cart-btn" href="/" style="text-decoration:none">← Back to shop</a>
+</div></div>
+
+<main class="container trackwrap">
+  <div class="panel">
+    <h1 class="th">Track your order</h1>
+    <p class="hint" style="margin:0 0 12px">Enter the order reference from your WhatsApp message. It looks like <b>MU-AB12C</b>.</p>
+    <form id="tForm" class="tform">
+      <input type="text" id="tRef" placeholder="MU-AB12C" autocomplete="off" autocapitalize="characters" maxlength="16" aria-label="Order reference" required>
+      <button class="btn btn-p" id="tGo" type="submit">Track</button>
+    </form>
+    <div id="recent" class="recent"></div>
+  </div>
+  <div id="result" aria-live="polite"></div>
+</main>
+
+<footer class="foot"><strong>ManaUpahar</strong> – Where Every Gift Carries a Memory</footer>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script>
+const $ = s => document.querySelector(s), esc = MU.esc;
+$('#brand').innerHTML = MU.logoHTML();
+let settings = {}, current = '', timer = null;
+
+const WORDS = {
+  new: 'We have received your order. We will confirm it with you on WhatsApp.',
+  confirmed: 'Your order is confirmed and your handmade gift is being prepared.',
+  packed: 'Your gift is carefully packed and ready to go.',
+  shipped: 'Your gift is on its way to you.',
+  delivered: 'Delivered. We hope it brings a smile!'
+};
+const fmtTime = t => { const d = new Date(t); return isNaN(d) ? '' : d.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); };
+const fmtDay = s => { const d = new Date(s + 'T00:00:00'); return isNaN(d) ? s : d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); };
+function toast(m, err) { const t = $('#toast'); t.textContent = m; t.className = 'toast show' + (err ? ' err' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.className = 'toast', 3500); }
+function waLink(text) { return 'https://wa.me/' + String(settings.whatsapp || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(text); }
+
+function render(o) {
+  const stages = MU.STAGES, idx = stages.findIndex(s => s[0] === o.status), cancelled = o.status === 'cancelled';
+  const log = Array.isArray(o.log) ? o.log : [];
+  // time of the latest log entry for each stage
+  const at = {}; log.forEach(e => { at[e.s] = e.at; });
+  let h = '<div class="panel"><div class="oh2"><div><div class="hint" style="margin:0">Order reference</div><div class="ref">' + esc(o.ref) + '</div></div>' +
+    '<div class="hint" style="margin:0;text-align:right">Placed ' + esc(fmtTime(o.created_at)) + '</div></div>';
+  if (cancelled) {
+    h += '<div class="tbanner off">This order was cancelled. If you did not expect this, please message us on WhatsApp.</div>';
+  } else {
+    h += '<div class="tbanner">' + esc(WORDS[o.status] || '') + '</div>';
+    h += '<ol class="steps">' + stages.map((s, i) => {
+      const state = i < idx ? 'done' : i === idx ? 'now' : '';
+      return '<li class="' + state + '"><span class="dot">' + (i <= idx ? '✓' : '') + '</span><div><div class="sl">' + esc(s[1]) + '</div>' +
+        '<div class="st">' + (i <= idx && at[s[0]] ? esc(fmtTime(at[s[0]])) : '') + '</div></div></li>';
+    }).join('') + '</ol>';
+  }
+  const facts = [];
+  if (o.delivery_date && !cancelled && o.status !== 'delivered') facts.push(['📅 Delivery date asked for', fmtDay(o.delivery_date)]);
+  if (o.courier) facts.push(['🚚 Courier', o.courier]);
+  if (o.tracking_no) facts.push(['🔢 Tracking number', o.tracking_no]);
+  if (facts.length) h += '<dl class="facts">' + facts.map(f => '<dt>' + f[0] + '</dt><dd>' + esc(f[1]) + '</dd>').join('') + '</dl>';
+  if (/^https?:\/\//i.test(o.tracking_url || '')) h += '<a class="btn btn-p" style="margin-top:10px" href="' + esc(o.tracking_url) + '" target="_blank" rel="noopener">Track with the courier ↗</a>';
+  if (o.customer_note) h += '<div class="tnote"><b>A note from us:</b> ' + esc(o.customer_note) + '</div>';
+  const items = (o.items || []).filter(i => i.kind !== 'delivery');
+  if (items.length) h += '<div class="titems"><b>In this order</b><ul>' + items.map(i => '<li>' + (i.kind === 'addon' ? '➕ ' : '') + esc(i.name) + (i.qty && i.qty !== '1' ? ' × ' + esc(i.qty) : '') + '</li>').join('') + '</ul></div>';
+  h += '<a class="btn btn-g" style="margin-top:12px" target="_blank" rel="noopener" href="' + esc(waLink('Hello ManaUpahar! I have a question about my order ' + o.ref + '.')) + '">Ask us about this order on WhatsApp</a>' +
+    ' <button class="btn btn-s" id="tRefresh" type="button" style="margin-top:12px">↻ Refresh</button></div>';
+  $('#result').innerHTML = h;
+  $('#tRefresh').onclick = () => lookup(current, 'manual');
+}
+
+async function lookup(ref, mode) { // mode: 'auto' (silent timer refresh), 'manual' (refresh button) or undefined (new search)
+  const quiet = !!mode;
+  ref = String(ref || '').trim().toUpperCase();
+  if (!ref) return;
+  current = ref; $('#tRef').value = ref;
+  const go = $('#tGo'); go.disabled = true; go.textContent = '…';
+  try {
+    const o = await MU.trackOrder(ref);
+    if (!o) {
+      $('#result').innerHTML = '<div class="panel"><b>We could not find order ' + esc(ref) + '.</b><p class="hint" style="margin:6px 0 0">Please check the reference in your WhatsApp message. If you only just placed it, make sure you pressed Send in WhatsApp, then try again.</p></div>';
+    } else {
+      render(o);
+      MU.rememberOrder(o.ref);
+      try { history.replaceState(null, '', '?ref=' + encodeURIComponent(o.ref)); } catch (e) {}
+      renderRecent();
+      if (mode === 'manual') toast('Updated');
+    }
+  } catch (e) {
+    console.error(e);
+    if (!quiet) $('#result').innerHTML = '<div class="panel"><b>' + esc(e.message || 'Something went wrong. Please try again.') + '</b></div>';
+    else if (mode === 'manual') toast(e.message || 'Could not refresh', true);
+  } finally { go.disabled = false; go.textContent = 'Track'; }
+}
+function renderRecent() {
+  const list = MU.myOrders();
+  $('#recent').innerHTML = list.length ? '<span class="hint">Your recent orders:</span> ' + list.map(r => '<button type="button" class="chip' + (r === current ? ' on' : '') + '" data-r="' + esc(r) + '">' + esc(r) + '</button>').join('') : '';
+}
+$('#recent').onclick = e => { const b = e.target.closest('[data-r]'); if (b) lookup(b.dataset.r); };
+$('#tForm').onsubmit = e => { e.preventDefault(); lookup($('#tRef').value); };
+
+(async function init() {
+  try { settings = await MU.getSettings(); } catch (e) {}
+  const q = new URLSearchParams(location.search).get('ref');
+  renderRecent();
+  if (q) lookup(q);
+  else if (MU.myOrders().length) lookup(MU.myOrders()[0]);
+  // keep the page fresh while it is open
+  timer = setInterval(() => { if (current && !document.hidden) lookup(current, 'auto'); }, 60000);
+})();
+</script>
+</body>
+</html>

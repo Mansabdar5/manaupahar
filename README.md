@@ -44,6 +44,7 @@ Already live? In Supabase → **SQL Editor** → **New query**, paste and **Run*
 5. `upgrade-v6.sql` (handicraft details and occasions)
 6. `upgrade-v7-reviews.sql` (customer reviews with admin approval)
 7. `upgrade-v8-review-photos.sql` (customer photo reviews and private photo storage)
+8. `upgrade-v9-order-tracking.sql` (order tracking: Packed and Shipped stages, courier details, public Track page)
 
 Run the SQL **before** uploading the new files to GitHub. Then upload the changed files and Vercel republishes by itself. Keep your own `config.js`.
 
@@ -51,13 +52,24 @@ Run the SQL **before** uploading the new files to GitHub. Then upload the change
 
 Customers can submit a rating and review from a product detail window. Reviews stay pending until you approve them in **Admin → Reviews**. Only approved reviews appear publicly. For an existing Supabase site, run `upgrade-v7-reviews.sql` once for text reviews, then `upgrade-v8-review-photos.sql` once to enable customer photo uploads. Customer photos are compressed to JPEG, limited to 5 MB before processing, stored in a private Supabase bucket, and shown to shoppers only after the linked review is approved. In demo mode, text reviews are stored only in that browser; photo uploads require the connected Supabase storage.
 
+## Order tracking
+
+Customers can follow their order at `yoursite.vercel.app/track`. They get there from the **Track order** link at the top of the shop, from the footer, or from the **Track this order** link shown right after they send an order. The page shows the stages **Order placed → Confirmed → Packed → Shipped → Delivered** with the time of each step, plus the courier, tracking number, a note from you and the items. It refreshes by itself every minute. The same device remembers the references of orders placed there.
+
+For you, in **Admin → Orders**:
+- Move an order along with the buttons: **Confirm**, **Mark packed**, **Mark shipped**, **Mark delivered**. Stock goes down at Confirm and comes back if you cancel. Each step has a small back button if you tapped too early.
+- Open **Tracking details for the customer** to add the courier, tracking number, the courier's tracking link and a short note, then **Save tracking details**.
+- Press **Copy update message**, then paste it into that customer's WhatsApp chat. It has the status and the tracking link, so they can open the page whenever they like.
+
+Privacy: customers can look up one order at a time and only by its reference. The page shows item names and quantities, never prices, personalisation text or other orders. Run `upgrade-v9-order-tracking.sql` first; until then the Track page says tracking is not switched on yet and the shop keeps working.
+
 ## Daily use
 1. Open `yoursite.vercel.app/admin` and log in.
 2. **Gifts → Add a gift:** name, price, **category (the craft)**, stock and **up to 6 photos**. Then fill the handicraft details: material, size, who made it and where, care instructions, and **days to make**. Leave days at 0 for ready-to-ship pieces. If you make it after the order, enter the days: customers see "Made to order" and cannot pick an earlier delivery date. Tick the occasions it suits (Birthday, Wedding, Festival ...) so customers can filter by occasion.
    Categories are now crafts, for example Pottery & Terracotta, Wood & Bamboo, Textiles & Handloom, Metal & Brass, Paintings & Folk Art. Type any new one you need. Use **Make cover** to choose the main photo. It appears on the shop immediately.
    Tick **Customers can personalise** to show a box where the customer types a name or message (you choose the question, for example "Name to print on the frame"). It is added to their WhatsApp order.
 3. **Stock:** every gift has a stock number. Use **−** when you sell one and **+** when you restock, or type the exact number under **Edit**. At **0** the shop shows **SOLD OUT** on the photo and the order buttons are disabled. With 3 or fewer left, customers see "Only N left", and they cannot add more to the cart than you have.
-4. **Orders tab:** when a customer taps the WhatsApp button, the order appears here as **New** with a reference such as `MU-AB12C` (the same reference is in their WhatsApp message). After you agree the order on WhatsApp, press **Confirm**: the stock goes down automatically. Then **Mark delivered** when done. **Cancel** puts the stock back.
+4. **Orders tab:** when a customer taps the WhatsApp button, the order appears here as **New** with a reference such as `MU-AB12C` (the same reference is in their WhatsApp message). After you agree the order on WhatsApp, press **Confirm**: the stock goes down automatically. Then move it through **Mark packed**, **Mark shipped** and **Mark delivered** (customers see each step on the Track page). **Cancel** puts the stock back.
 5. **Best sellers:** tick "Show as Best seller" on a gift to give it a ⭐ badge and show it first in the shop. Gifts added in the last 14 days get a "New" badge automatically.
 6. **Summary tab:** new orders waiting, orders and sales this month, all-time sales, your top 5 sellers, and gifts running low. It counts only orders you have confirmed.
 7. **Add-ons & Delivery tab:**

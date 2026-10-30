@@ -13,7 +13,8 @@
 
 <div class="topbar"><div class="container">
   <a class="brand" href="/" id="brand" aria-label="ManaUpahar home" title="Go to homepage"></a>
-  <button class="cart-btn" id="openCart" aria-label="Open cart">🛒 Cart <span class="badge" id="count">0</span></button>
+  <div class="topr"><a class="toplink" href="track" id="trackLink">📦 Track order</a>
+  <button class="cart-btn" id="openCart" aria-label="Open cart">🛒 Cart <span class="badge" id="count">0</span></button></div>
 </div></div>
 
 <section class="hero"><div class="container">
@@ -281,6 +282,7 @@ function placeOrder(es, fromCart) {
   const msg = 'Hello ManaUpahar! 🎁\nOrder ref: ' + ref + '\n\n' + lines.join('\n') + '\n\nTotal: ' + money(total) + '\n\nMy name:\nDelivery address:\nDelivery date:' + (date ? ' ' + fmtDate(date) : '');
   const waUrl = waLink(msg);
   window.open(waUrl, '_blank', 'noopener');
+  MU.rememberOrder(ref);
   MU.saveOrder({ ref, items, total, delivery_date: date || null }).catch(err => console.error('Order not saved', err));
   resetAfterOrder(ref, waUrl, fromCart);
 }
@@ -295,7 +297,7 @@ function resetAfterOrder(ref, url, fromCart) {
 // Small bar at the bottom: confirms the order and lets the customer reopen WhatsApp if it did not open.
 function showSentBar(ref, url) {
   const bar = $('#sentBar');
-  $('#sentTxt').innerHTML = '✅ Order <b>' + esc(ref) + '</b> is ready. Press <b>Send</b> in WhatsApp to place it.';
+  $('#sentTxt').innerHTML = '✅ Order <b>' + esc(ref) + '</b> is ready. Press <b>Send</b> in WhatsApp to place it. <a class="plain" href="track?ref=' + encodeURIComponent(ref) + '">Track this order</a>';
   $('#sentLink').href = url;
   bar.classList.add('show');
   clearTimeout(showSentBar.t); showSentBar.t = setTimeout(() => bar.classList.remove('show'), 30000);
@@ -534,6 +536,7 @@ function renderFooter() {
   if (settings.delivery) cols.push('<div><h4>Delivery &amp; returns</h4><p>' + esc(settings.delivery) + '</p></div>');
   const links = ['<a href="' + esc(waLink('Hello ManaUpahar! I have a question about your gifts.')) + '" target="_blank" rel="noopener">Chat on WhatsApp</a>'];
   if (/^https?:\/\//i.test(settings.instagram || '')) links.push('<a href="' + esc(settings.instagram) + '" target="_blank" rel="noopener">Instagram</a>');
+  links.push('<a href="track">Track your order</a>');
   cols.push('<div><h4>Contact</h4><p>' + links.join('\n') + '</p></div>');
   $('#footGrid').innerHTML = cols.join('');
   $('#waFloat').href = waLink('Hello ManaUpahar! I have a question about your gifts.');

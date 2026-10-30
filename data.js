@@ -93,6 +93,12 @@
     live,
     esc: s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])),
     imagesOf: p => (p && p.images && p.images.length) ? p.images : (p && p.image_url ? [p.image_url] : []),
+    // Order stages in the order customers see them
+    STAGES: [['new', 'Order placed'], ['confirmed', 'Confirmed'], ['packed', 'Packed'], ['shipped', 'Shipped'], ['delivered', 'Delivered']],
+    ACTIVE: ['confirmed', 'packed', 'shipped', 'delivered'],
+    // Orders placed on this device, so customers can find their reference again
+    myOrders: () => { try { return JSON.parse(localStorage.getItem('mu_myorders') || '[]').filter(r => /^MU-/.test(r)); } catch (e) { return []; } },
+    rememberOrder: ref => { try { localStorage.setItem('mu_myorders', JSON.stringify([ref].concat(MU.myOrders().filter(r => r !== ref)).slice(0, 8))); } catch (e) {} },
     genRef: () => 'MU-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
     stockOf: p => Math.max(0, Number(p && p.stock != null ? p.stock : (p && p.in_stock === false ? 0 : 1)) || 0),
     money: n => '₹' + Number(n || 0).toLocaleString('en-IN'),
@@ -219,7 +225,7 @@
     async saveOrder(o) {
       if (!live) {
         const l = rd(K.o, []);
-        l.unshift({ id: 'o' + Date.now() + Math.random().toString(36).slice(2, 5), ref: o.ref, items: o.items, total: o.total, delivery_date: o.delivery_date || null, status: 'new', created_at: new Date().toISOString() });
+        l.unshift({ id: 'o' + Date.now() + Math.random().toString(36).slice(2, 5), ref: o.ref, items: o.items, total: o.total, delivery_date: o.delivery_date || null, status: 'new', created_at: new Date().toISOString(), status_log: [{ s: 'new', at: new Date().toISOString() }] });
         wr(K.o, l); return;
       }
       let { error } = await sb.from('orders').insert({ ref: o.ref, items: o.items, total: o.total, delivery_date: o.delivery_date || null });
@@ -243,7 +249,7 @@
       }
       const orders = rd(K.o, []), o = orders.find(x => x.id === id);
       if (!o) throw new Error('Order not found');
-      const active = s => s === 'confirmed' || s === 'delivered';
+      const active = s => MU.ACTIVE.includes(s);
       if (active(status) !== active(o.status)) {
         const sign = active(status) ? -1 : 1;
         const list = rd(K.p, sample).slice();
@@ -253,7 +259,40 @@
         });
         wr(K.p, list);
       }
-      o.status = status; wr(K.o, orders);
+      if (o.status !== status) { o.status = status; o.status_log = (o.status_log || []).concat([{ s: status, at: new Date().toISOString() }]); }
+      wr(K.o, orders);
+    },
+    // Courier / tracking details and the short note the customer sees
+    async updateOrder(id, f) {
+      const row = {};
+      ['courier', 'tracking_no', 'tracking_url', 'customer_note'].forEach(k => { if (f[k] !== undefined) row[k] = f[k] ? String(f[k]).trim() : null; });
+      if (row.tracking_url && !/^https?:\/\//i.test(row.tracking_url)) throw new Error('The tracking link must start with http:// or https://');
+      if (!live) {
+        const orders = rd(K.o, []), o = orders.find(x => x.id === id);
+        if (!o) throw new Error('Order not found');
+        Object.assign(o, row); wr(K.o, orders); return;
+      }
+      const { error } = await sb.from('orders').update(row).eq('id', id);
+      if (error && /column|schema cache/i.test(error.message || '')) throw new Error('The database needs the order-tracking upgrade. Run upgrade-v9-order-tracking.sql in Supabase (see README), then try again.');
+      if (error) throw error;
+    },
+    // Public lookup of ONE order by its reference. Returns null when not found.
+    async trackOrder(ref) {
+      ref = String(ref || '').trim().toUpperCase();
+      if (!/^MU-[A-Z0-9]{3,12}$/.test(ref)) return null;
+      if (!live) {
+        const o = rd(K.o, []).find(x => String(x.ref).toUpperCase() === ref);
+        if (!o) return null;
+        return { ref: o.ref, status: o.status, created_at: o.created_at, delivery_date: o.delivery_date, courier: o.courier || null, tracking_no: o.tracking_no || null,
+          tracking_url: o.tracking_url || null, customer_note: o.customer_note || null, log: o.status_log || [{ s: o.status, at: o.created_at }],
+          items: (o.items || []).map(i => ({ name: i.name, qty: i.qty, kind: i.kind })) };
+      }
+      const { data, error } = await sb.rpc('track_order', { p_ref: ref });
+      if (error) {
+        if (/track_order|schema cache|function/i.test(error.message || '')) throw new Error('Order tracking is not switched on yet. Please message us on WhatsApp with your order reference.');
+        throw error;
+      }
+      return data || null;
     },
 
     async session() {

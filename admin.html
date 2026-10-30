@@ -100,7 +100,7 @@
       <div class="panel">
         <h2>Orders</h2>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px"><button class="btn btn-s" id="enableOrderAlerts" type="button">🔔 Enable new-order notifications</button><button class="btn btn-s" id="refreshOrders" type="button">↻ Refresh orders</button></div>
-        <div class="hint" style="margin:-6px 0 12px">Every time a customer taps the WhatsApp button, the order appears here as <b>New</b>. <b>Confirm</b> it once you agree it on WhatsApp: the stock goes down automatically. <b>Cancel</b> puts the stock back.</div>
+        <div class="hint" style="margin:-6px 0 12px">Every time a customer taps the WhatsApp button, the order appears here as <b>New</b>. <b>Confirm</b> it once you agree it on WhatsApp: the stock goes down automatically. Then move it along: <b>Packed → Shipped → Delivered</b>. Customers see each step on the <b>Track order</b> page. Open <b>Tracking details</b> on an order to add the courier and tracking number, and use <b>Copy update message</b> to paste a status update with the tracking link into the customer's WhatsApp chat. <b>Cancel</b> puts the stock back.</div>
         <div class="subtabs" id="ofilter"></div>
         <div class="list" id="olist"></div>
       </div>
@@ -348,7 +348,8 @@ $('#list').onclick = e => {
 };
 
 /* ---------- Orders ---------- */
-const STATUS = { new: ['New', 'new'], confirmed: ['Confirmed', ''], delivered: ['Delivered', 'done'], cancelled: ['Cancelled', 'off'] };
+const STATUS = { new: ['New', 'new'], confirmed: ['Confirmed', ''], packed: ['Packed', 'pack'], shipped: ['Shipped', 'ship'], delivered: ['Delivered', 'done'], cancelled: ['Cancelled', 'off'] };
+const STATUS_WORDS = { new: 'We have received your order and will confirm it with you shortly.', confirmed: 'Your order is confirmed and is being prepared.', packed: 'Your gift is packed and ready to go.', shipped: 'Your gift is on its way.', delivered: 'Your gift has been delivered. We hope you love it!', cancelled: 'Your order has been cancelled.' };
 async function loadOrders() {
   orders = await MU.getOrders();
   const n = orders.filter(o => o.status === 'new').length;
@@ -367,7 +368,7 @@ $('#enableOrderAlerts').onclick = async () => {
 $('#refreshOrders').onclick = () => guard(async () => { await loadOrders(); toast('Orders refreshed'); });
 function renderOrders() {
   const counts = {}; orders.forEach(o => counts[o.status] = (counts[o.status] || 0) + 1);
-  $('#ofilter').innerHTML = [['new', 'New'], ['confirmed', 'Confirmed'], ['delivered', 'Delivered'], ['cancelled', 'Cancelled'], ['all', 'All']]
+  $('#ofilter').innerHTML = [['new', 'New'], ['confirmed', 'Confirmed'], ['packed', 'Packed'], ['shipped', 'Shipped'], ['delivered', 'Delivered'], ['cancelled', 'Cancelled'], ['all', 'All']]
     .map(([k, l]) => '<button class="chip ' + (k === ofilter ? 'on' : '') + '" data-of="' + k + '">' + l + (k !== 'all' && counts[k] ? ' (' + counts[k] + ')' : '') + '</button>').join('');
   const list = orders.filter(o => ofilter === 'all' || o.status === ofilter);
   $('#olist').innerHTML = list.length ? list.map(o => {
@@ -376,23 +377,53 @@ function renderOrders() {
     const items = (o.items || []).map(it => '<li>' + (it.kind === 'addon' ? '➕ ' : it.kind === 'delivery' ? '🚚 ' : '') + esc(it.name) + (it.kind === 'delivery' ? '' : ' × ' + esc(it.qty)) + ' – ' + (it.kind === 'delivery' && !Number(it.price) ? 'free / to confirm' : money(it.qty * it.price)) +
       (it.note ? '<small>✍ ' + esc(it.note) + '</small>' : '') + '</li>').join('');
     const id = esc(o.id);
+    const B = (to, text, cls) => '<button class="btn ' + cls + '" data-os="' + to + '" data-id="' + id + '">' + text + '</button>';
+    const cancelBtn = B('cancelled', 'Cancel (restores stock)', 'btn-d');
     const btns = {
-      new: '<button class="btn btn-p" data-os="confirmed" data-id="' + id + '">Confirm (reduces stock)</button><button class="btn btn-d" data-os="cancelled" data-id="' + id + '">Cancel</button>',
-      confirmed: '<button class="btn btn-p" data-os="delivered" data-id="' + id + '">Mark delivered</button><button class="btn btn-d" data-os="cancelled" data-id="' + id + '">Cancel (restores stock)</button>',
-      delivered: '<button class="btn btn-s" data-os="cancelled" data-id="' + id + '">Cancel (restores stock)</button>',
-      cancelled: '<button class="btn btn-s" data-os="new" data-id="' + id + '">Move back to New</button>'
+      new: B('confirmed', 'Confirm (reduces stock)', 'btn-p') + B('cancelled', 'Cancel', 'btn-d'),
+      confirmed: B('packed', 'Mark packed', 'btn-p') + cancelBtn,
+      packed: B('shipped', 'Mark shipped', 'btn-p') + B('confirmed', '← Back to confirmed', 'btn-s') + cancelBtn,
+      shipped: B('delivered', 'Mark delivered', 'btn-p') + B('packed', '← Back to packed', 'btn-s') + cancelBtn,
+      delivered: B('shipped', '← Back to shipped', 'btn-s') + cancelBtn,
+      cancelled: B('new', 'Move back to New', 'btn-s')
     }[o.status] || '';
+    const track = (o.status === 'new' || o.status === 'cancelled') ? '' :
+      '<details class="otrack"' + (o.status === 'shipped' ? ' open' : '') + '><summary>📦 Tracking details for the customer</summary>' +
+      '<div class="row3"><input data-tf="courier" data-id="' + id + '" placeholder="Courier (e.g. DTDC, India Post)" maxlength="80" value="' + esc(o.courier || '') + '">' +
+      '<input data-tf="tracking_no" data-id="' + id + '" placeholder="Tracking number" maxlength="80" value="' + esc(o.tracking_no || '') + '"></div>' +
+      '<input data-tf="tracking_url" data-id="' + id + '" placeholder="Courier tracking link (optional, starts with https://)" maxlength="500" value="' + esc(o.tracking_url || '') + '">' +
+      '<input data-tf="customer_note" data-id="' + id + '" placeholder="Short note the customer will see (optional)" maxlength="300" value="' + esc(o.customer_note || '') + '">' +
+      '<div class="b"><button class="btn btn-p" data-savetrack="' + id + '">Save tracking details</button></div></details>';
+    const copyBtn = o.status === 'cancelled' ? '' : '<button class="btn btn-s" data-copymsg="' + id + '">📋 Copy update message</button>';
     return '<div class="order"><div class="oh"><strong>' + esc(o.ref) + '</strong><span class="pill ' + cls + '" style="margin:0">' + label + '</span><span class="when">' + when + '</span></div>' +
       (o.delivery_date ? '<div class="s" style="font-weight:700;color:var(--navy)">📅 Deliver on ' + esc(o.delivery_date.split('-').reverse().join('/')) + '</div>' : '') +
-      '<ul>' + items + '</ul><div class="ot">Total ' + money(o.total) + '</div><div class="b">' + btns + '</div></div>';
+      '<ul>' + items + '</ul><div class="ot">Total ' + money(o.total) + '</div><div class="b">' + btns + copyBtn + '</div>' + track + '</div>';
   }).join('') : '<div class="note">No ' + (ofilter === 'all' ? '' : ofilter + ' ') + 'orders yet.</div>';
 }
 $('#ofilter').onclick = e => { const b = e.target.closest('[data-of]'); if (b) { ofilter = b.dataset.of; renderOrders(); } };
+const trackLink = o => location.origin + '/track?ref=' + encodeURIComponent(o.ref);
 $('#olist').onclick = e => {
+  const sv = e.target.closest('[data-savetrack]'), cp = e.target.closest('[data-copymsg]');
+  if (sv) {
+    const id = sv.dataset.savetrack, f = {};
+    document.querySelectorAll('#olist [data-tf]').forEach(i => { if (i.dataset.id === id) f[i.dataset.tf] = i.value; });
+    guard(async () => { await MU.updateOrder(id, f); await loadOrders(); toast('Tracking details saved'); });
+    return;
+  }
+  if (cp) {
+    const o = orders.find(x => String(x.id) === String(cp.dataset.copymsg)); if (!o) return;
+    const lines = ['Hello! Update on your ManaUpahar order ' + o.ref + ':', STATUS_WORDS[o.status] || ''];
+    if (o.courier || o.tracking_no) lines.push('Courier: ' + [o.courier, o.tracking_no].filter(Boolean).join(' – '));
+    if (o.customer_note) lines.push(o.customer_note);
+    lines.push('Track your order any time: ' + trackLink(o));
+    const text = lines.join('\n');
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast('Message copied. Paste it in the customer\'s WhatsApp chat.'), () => window.prompt('Copy this message', text));
+    return;
+  }
   const b = e.target.closest('[data-os]'); if (!b) return;
   const o = orders.find(x => String(x.id) === String(b.dataset.id)); if (!o) return;
   const to = b.dataset.os;
-  if (to === 'confirmed') { // warn if some gifts have less stock than the order needs
+  if (MU.ACTIVE.includes(to) && !MU.ACTIVE.includes(o.status)) { // warn if some gifts have less stock than the order needs
     const short = (o.items || []).filter(it => { const p = products.find(x => String(x.id) === String(it.id)); return p && MU.stockOf(p) < it.qty; });
     if (short.length && !confirm('Stock is lower than ordered for: ' + short.map(s => s.name).join(', ') + '.\nConfirm anyway? Their stock will go to 0.')) return;
   }
@@ -400,7 +431,7 @@ $('#olist').onclick = e => {
   guard(async () => {
     await MU.setOrderStatus(o.id, to);
     await Promise.all([loadOrders(), loadGifts()]);
-    toast(to === 'confirmed' ? 'Order confirmed. Stock reduced.' : to === 'cancelled' ? 'Order cancelled' : 'Order updated');
+    toast(to === 'cancelled' ? 'Order cancelled' : 'Order marked as ' + (STATUS[to] || [to])[0].toLowerCase() + (MU.ACTIVE.includes(to) && !MU.ACTIVE.includes(o.status) ? '. Stock reduced.' : ''));
   });
 };
 
@@ -468,7 +499,7 @@ $('#zList').onclick = e => {
 
 /* ---------- Summary ---------- */
 function renderSummary() {
-  const sold = orders.filter(o => o.status === 'confirmed' || o.status === 'delivered');
+  const sold = orders.filter(o => MU.ACTIVE.includes(o.status));
   const now = new Date(), sameMonth = o => { const d = new Date(o.created_at); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); };
   const sum = list => list.reduce((a, o) => a + (Number(o.total) || 0), 0);
   const tiles = [
