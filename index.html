@@ -12,7 +12,7 @@
 <body>
 
 <div class="topbar"><div class="container">
-  <a class="brand" href="/" id="brand"></a>
+  <a class="brand" href="/" id="brand" aria-label="ManaUpahar home" title="Go to homepage"></a>
   <button class="cart-btn" id="openCart" aria-label="Open cart">🛒 Cart <span class="badge" id="count">0</span></button>
 </div></div>
 
@@ -87,6 +87,20 @@
     <p id="mDesc" style="margin:0;color:var(--muted)"></p>
     <dl class="facts" id="mFacts"></dl>
     <p class="hm" id="mHandmade"></p>
+    <section class="reviews" id="reviewSection" aria-labelledby="reviewHeading">
+      <div class="review-head"><h3 id="reviewHeading">Customer reviews</h3><div id="reviewSummary" class="review-summary">Loading reviews…</div></div>
+      <div id="reviewList" class="review-list"></div>
+      <form id="reviewForm" class="review-form">
+        <h4>Share your experience</h4>
+        <div class="row2">
+          <div><label for="reviewName">Your name</label><input id="reviewName" type="text" maxlength="70" required placeholder="Your name"></div>
+          <div><label for="reviewRating">Your rating</label><select id="reviewRating" required><option value="5">★★★★★ – Excellent</option><option value="4">★★★★☆ – Very good</option><option value="3">★★★☆☆ – Good</option><option value="2">★★☆☆☆ – Fair</option><option value="1">★☆☆☆☆ – Poor</option></select></div>
+        </div>
+        <label for="reviewText">Your review</label><textarea id="reviewText" rows="3" maxlength="500" minlength="10" required placeholder="What did you like about this gift? (10–500 characters)"></textarea>
+        <button class="btn btn-o" type="submit">Submit review</button>
+        <small class="review-note">Reviews are checked by our team before appearing publicly.</small>
+      </form>
+    </section>
     <div class="delivery-hint"><span>🚚</span><div><strong>Delivery made simple</strong><small>Enter your pincode below to check service availability and delivery charges. Preparation time is shown in product details.</small></div></div>
     <div class="note-field" id="mNoteBox" style="display:none">
       <label for="mNote" id="mNoteLabel">Personalise</label>
@@ -369,6 +383,30 @@ function renderRelated(p) {
   $('#relatedWrap').hidden = false;
   $('#relatedGrid').innerHTML = related.map(x => '<button class="related-card" type="button" data-view="' + esc(x.id) + '"><img src="' + esc(cover(x)) + '" alt="' + esc(x.name) + '"><span><b>' + esc(x.name) + '</b><small>' + money(x.price) + '</small></span></button>').join('');
 }
+function stars(n) { return '★'.repeat(Math.max(0, Math.min(5, Number(n) || 0))) + '☆'.repeat(5 - Math.max(0, Math.min(5, Number(n) || 0))); }
+function renderReviews(list) {
+  const count = list.length, avg = count ? list.reduce((a, r) => a + Number(r.rating || 0), 0) / count : 0;
+  $('#reviewSummary').textContent = count ? stars(Math.round(avg)) + '  ' + avg.toFixed(1) + '/5 · ' + count + ' review' + (count === 1 ? '' : 's') : 'No reviews yet';
+  $('#reviewList').innerHTML = count ? list.map(r => '<article class="review-card"><div class="review-card-top"><strong>' + esc(r.customer_name) + '</strong><span class="review-stars" aria-label="' + Number(r.rating) + ' out of 5 stars">' + stars(r.rating) + '</span></div><p>' + esc(r.review_text) + '</p><small>' + (r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '') + '</small></article>').join('') : '<p class="review-empty">Be the first to share your experience with this gift.</p>';
+}
+async function loadProductReviews(productId) {
+  $('#reviewSummary').textContent = 'Loading reviews…'; $('#reviewList').innerHTML = '';
+  try { renderReviews(await MU.reviews.list(productId, false)); }
+  catch (e) { console.warn('Reviews could not be loaded:', e); $('#reviewSummary').textContent = 'Reviews are temporarily unavailable.'; $('#reviewList').innerHTML = ''; }
+}
+$('#reviewForm').onsubmit = async e => {
+  e.preventDefault();
+  if (!viewing) return;
+  const customer_name = $('#reviewName').value.trim(), review_text = $('#reviewText').value.trim(), rating = Number($('#reviewRating').value);
+  if (customer_name.length < 2 || review_text.length < 10 || review_text.length > 500 || rating < 1 || rating > 5) { toast('Please enter your name and a review of at least 10 characters.'); return; }
+  const btn = $('#reviewForm button[type="submit"]'); btn.disabled = true;
+  try {
+    await MU.reviews.submit({ product_id: viewing.id, customer_name, review_text, rating });
+    $('#reviewForm').reset(); toast('Thank you! Your review was submitted for approval.');
+  } catch (err) { console.error(err); toast('Could not submit your review. Please try again.'); }
+  finally { btn.disabled = false; }
+};
+
 function view(id) {
   const p = byId(id); if (!p) return; viewing = p;
   const imgs = MU.imagesOf(p);
@@ -381,6 +419,7 @@ function view(id) {
   $('#mBadges').innerHTML = '<span>✦ Handmade</span>' + (p.personalise ? '<span>✍ Personalisation available</span>' : '') + (left === 0 ? '<span class="detail-out">Currently unavailable</span>' : left <= 3 ? '<span class="detail-low">Only ' + left + ' left</span>' : '<span class="detail-stock">In stock</span>');
   $('#mFacts').innerHTML = factsHTML(p);
   renderRelated(p);
+  loadProductReviews(p.id);
   $('#mHandmade').textContent = settings.handmade_note || ''; $('#mHandmade').style.display = settings.handmade_note ? '' : 'none';
   const out = MU.stockOf(p) === 0;
   $('#mNoteBox').style.display = p.personalise && !out ? '' : 'none';

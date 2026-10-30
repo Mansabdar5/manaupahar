@@ -42,8 +42,13 @@ Already live? In Supabase → **SQL Editor** → **New query**, paste and **Run*
 3. `upgrade-v4.sql` (best sellers, delivery dates)
 4. `upgrade-v5.sql` (add-ons, delivery charges by pincode)
 5. `upgrade-v6.sql` (handicraft details and occasions)
+6. `upgrade-v7-reviews.sql` (customer reviews with admin approval)
 
 Run the SQL **before** uploading the new files to GitHub. Then upload the changed files and Vercel republishes by itself. Keep your own `config.js`.
+
+## Customer reviews
+
+Customers can submit a rating and review from a product detail window. Reviews stay pending until you approve them in **Admin → Reviews**. Only approved reviews appear publicly. For an existing Supabase site, run `upgrade-v7-reviews.sql` once before deploying this update. In demo mode, reviews are stored only in that browser.
 
 ## Daily use
 1. Open `yoursite.vercel.app/admin` and log in.

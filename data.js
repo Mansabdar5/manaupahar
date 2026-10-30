@@ -3,7 +3,7 @@
   const C = window.MU_CONFIG || {};
   const live = !!(C.SUPABASE_URL && C.SUPABASE_ANON_KEY && window.supabase);
   const sb = live ? window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY) : null;
-  const K = { p: 'mu_demo_products', s: 'mu_demo_settings', a: 'mu_demo_admin', o: 'mu_demo_orders', ad: 'mu_demo_addons', z: 'mu_demo_zones' };
+  const K = { p: 'mu_demo_products', s: 'mu_demo_settings', a: 'mu_demo_admin', o: 'mu_demo_orders', ad: 'mu_demo_addons', z: 'mu_demo_zones', r: 'mu_demo_reviews' };
 
   const rd = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const wr = (k, v) => {
@@ -159,6 +159,38 @@
 
     addons: table('addons', K.ad, sampleAddons, ['name', 'price', 'per_item', 'active']),
     zones: table('delivery_zones', K.z, sampleZones, ['label', 'pincodes', 'charge', 'free_above', 'active']),
+
+    // ---- Customer reviews (public submissions remain pending until an admin approves) ----
+    reviews: {
+      async list(productId, includePending) {
+        if (!live) {
+          const rows = rd(K.r, []);
+          return rows.filter(r => (!productId || String(r.product_id) === String(productId)) && (includePending || r.status === 'approved'))
+            .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+        }
+        let q = sb.from('reviews').select('*').order('created_at', { ascending: false }).limit(300);
+        if (productId) q = q.eq('product_id', productId);
+        if (!includePending) q = q.eq('status', 'approved');
+        const { data, error } = await q;
+        if (error) throw error;
+        return data || [];
+      },
+      async submit(r) {
+        const row = { product_id: r.product_id, customer_name: String(r.customer_name || '').trim().slice(0, 70), rating: Math.max(1, Math.min(5, Number(r.rating) || 5)), review_text: String(r.review_text || '').trim().slice(0, 500), status: 'pending' };
+        if (!row.customer_name || row.review_text.length < 10) throw new Error('Please provide your name and a review of at least 10 characters.');
+        if (!live) {
+          const rows = rd(K.r, []); rows.unshift(Object.assign({ id: 'r' + Date.now(), created_at: new Date().toISOString() }, row)); wr(K.r, rows); return;
+        }
+        const { error } = await sb.from('reviews').insert(row);
+        if (error) throw error;
+      },
+      async setStatus(id, status) {
+        if (!['approved', 'rejected', 'pending'].includes(status)) throw new Error('Invalid review status.');
+        if (!live) { const rows = rd(K.r, []); const r = rows.find(x => String(x.id) === String(id)); if (r) r.status = status; wr(K.r, rows); return; }
+        const { error } = await sb.from('reviews').update({ status }).eq('id', id);
+        if (error) throw error;
+      }
+    },
 
     // ---- Orders ----
     async saveOrder(o) {

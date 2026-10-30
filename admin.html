@@ -11,7 +11,7 @@
 <body>
 
 <div class="topbar"><div class="container">
-  <a class="brand" href="/admin" id="brand"></a>
+  <a class="brand" href="/" id="brand" aria-label="ManaUpahar home" title="Go to shop homepage"></a>
   <div style="display:flex;gap:8px;align-items:center">
     <a class="btn btn-s" href="/" target="_blank">View shop</a>
     <button class="btn btn-d" id="logout" style="display:none">Log out</button>
@@ -36,6 +36,7 @@
     <div class="tabs">
       <button class="chip on" data-tab="gifts">Gifts</button>
       <button class="chip" data-tab="orders">Orders<span class="cnt" id="newCnt" style="display:none">0</span></button>
+      <button class="chip" data-tab="reviews">Reviews</button>
       <button class="chip" data-tab="extras">Add-ons &amp; Delivery</button>
       <button class="chip" data-tab="summary">Summary</button>
       <button class="chip" data-tab="settings">Settings</button>
@@ -102,6 +103,14 @@
         <div class="hint" style="margin:-6px 0 12px">Every time a customer taps the WhatsApp button, the order appears here as <b>New</b>. <b>Confirm</b> it once you agree it on WhatsApp: the stock goes down automatically. <b>Cancel</b> puts the stock back.</div>
         <div class="subtabs" id="ofilter"></div>
         <div class="list" id="olist"></div>
+      </div>
+    </div>
+
+    <div id="tab-reviews" style="display:none">
+      <div class="panel">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h2 style="margin:0">Customer reviews</h2><button class="btn btn-s" id="refreshReviews" type="button">↻ Refresh</button></div>
+        <p class="hint">New reviews are pending until you approve them. Only approved reviews appear on the public product pages.</p>
+        <div class="list" id="reviewAdminList"></div>
       </div>
     </div>
 
@@ -221,9 +230,10 @@ $('#logout').onclick = () => guard(async () => { await MU.logout(); await route(
 
 document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
   document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b));
-  ['gifts', 'orders', 'extras', 'summary', 'settings'].forEach(t => $('#tab-' + t).style.display = b.dataset.tab === t ? '' : 'none');
+  ['gifts', 'orders', 'reviews', 'extras', 'summary', 'settings'].forEach(t => $('#tab-' + t).style.display = b.dataset.tab === t ? '' : 'none');
   if (b.dataset.tab === 'extras') guard(loadExtras);
   if (b.dataset.tab === 'orders' || b.dataset.tab === 'summary') guard(async () => { await loadGifts(); await loadOrders(); });
+  if (b.dataset.tab === 'reviews') guard(loadReviews);
 });
 
 /* ---------- Gifts ---------- */
@@ -392,6 +402,20 @@ $('#olist').onclick = e => {
     await Promise.all([loadOrders(), loadGifts()]);
     toast(to === 'confirmed' ? 'Order confirmed. Stock reduced.' : to === 'cancelled' ? 'Order cancelled' : 'Order updated');
   });
+};
+
+/* ---------- Customer reviews ---------- */
+let adminReviews = [];
+async function loadReviews() {
+  adminReviews = await MU.reviews.list(null, true);
+  const productName = id => (products.find(p => String(p.id) === String(id)) || {}).name || 'Product no longer listed';
+  $('#reviewAdminList').innerHTML = adminReviews.length ? adminReviews.map(r => '<div class="item plain"><div><div class="t">' + esc(r.customer_name) + ' <span class="pill ' + (r.status === 'approved' ? '' : 'low') + '">' + esc(r.status || 'pending') + '</span></div><div class="s">' + esc(productName(r.product_id)) + ' · ' + '★'.repeat(Number(r.rating) || 0) + '☆'.repeat(5 - (Number(r.rating) || 0)) + ' · ' + (r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : '') + '</div><p style="margin:6px 0 0;white-space:pre-wrap">' + esc(r.review_text) + '</p></div><div class="b">' + (r.status !== 'approved' ? '<button class="btn btn-g" data-review-approve="' + esc(r.id) + '">Approve</button>' : '') + (r.status !== 'rejected' ? '<button class="btn btn-d" data-review-reject="' + esc(r.id) + '">Reject</button>' : '') + '</div></div>').join('') : '<div class="note">No customer reviews yet.</div>';
+}
+$('#refreshReviews').onclick = () => guard(loadReviews);
+$('#reviewAdminList').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const id = b.dataset.reviewApprove || b.dataset.reviewReject; if (!id) return;
+  guard(async () => { await MU.reviews.setStatus(id, b.dataset.reviewApprove ? 'approved' : 'rejected'); await loadReviews(); toast(b.dataset.reviewApprove ? 'Review approved and published.' : 'Review rejected.'); });
 };
 
 /* ---------- Add-ons and delivery areas ---------- */
